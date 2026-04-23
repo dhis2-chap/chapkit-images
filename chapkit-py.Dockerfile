@@ -19,7 +19,7 @@ ARG CHAPKIT_REF=main
 RUN --mount=type=cache,target=/root/.cache/uv \
     git clone --depth 1 --branch "${CHAPKIT_REF}" "${CHAPKIT_REPO}" /src/chapkit \
     && cd /src/chapkit \
-    && UV_PROJECT_ENVIRONMENT=/app/.venv uv sync --frozen --no-dev \
+    && UV_PROJECT_ENVIRONMENT=/app/.venv uv sync --frozen --no-dev --no-editable \
     && rm -rf /src
 
 WORKDIR /work
