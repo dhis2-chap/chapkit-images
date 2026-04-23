@@ -1,21 +1,37 @@
 # chapkit-images
 
-Docker images for running [`chapkit run`](https://github.com/dhis2-chap/chapkit)
-against MLflow-style `MLproject` directories. Lives in a separate repository so
-its long docker builds (multi-arch R compilation, INLA from CRAN) don't slow
-down every commit on [`chapkit`](https://github.com/dhis2-chap/chapkit) itself.
+Base Docker images for [`chapkit`](https://github.com/dhis2-chap/chapkit)
+services — Python / R / R+INLA runtimes with `chapkit`, `uv`, `renv`, and `pak`
+pre-installed. Use them two ways:
+
+1. **Run an MLproject directly** with the built-in
+   [`chapkit run`](https://dhis2-chap.github.io/chapkit/guides/mlproject-runner/)
+   CMD (mount your MLproject at `/work`).
+2. **Build a chapkit service** by `FROM`-ing one of these images in your own
+   `Dockerfile` and layering in your `main.py`, `pyproject.toml`, `renv.lock`,
+   etc. `chapkit init` and `chapkit migrate` scaffold exactly this layout
+   and pick the right base image for your project.
+
+Lives in a separate repository so its long docker builds (multi-arch R
+compilation, INLA from CRAN) don't slow down every commit on
+[`chapkit`](https://github.com/dhis2-chap/chapkit) itself.
 
 ## Published images
 
-| Image                                          | Base                                               | Arches                         | Purpose                                                                 |
-| ---------------------------------------------- | -------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------- |
-| `ghcr.io/dhis2-chap/chapkit-py:latest`         | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64`   | Python MLproject models. Lean.                                          |
-| `ghcr.io/dhis2-chap/chapkit-r:latest`          | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64`   | R MLproject models that do not need INLA. R 4.5 + `renv` + `pak`.       |
-| `ghcr.io/dhis2-chap/chapkit-r-inla:latest`     | `debian:trixie-slim` (two-stage)                   | `linux/amd64` (INLA x86_64)    | R MLproject models that use INLA. Full spatial + time-series R stack.   |
+| Image                                          | Base                                               | Arches                         | ~Size (amd64, pushed) | Purpose                                                                 |
+| ---------------------------------------------- | -------------------------------------------------- | ------------------------------ | --------------------- | ----------------------------------------------------------------------- |
+| `ghcr.io/dhis2-chap/chapkit-py:latest`         | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64`   | ~220 MB               | Python chapkit services and Python MLproject models. Lean.              |
+| `ghcr.io/dhis2-chap/chapkit-r:latest`          | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64`   | ~400 MB               | R chapkit services that do not need INLA. R 4.5 + `renv` + `pak`.       |
+| `ghcr.io/dhis2-chap/chapkit-r-inla:latest`     | `debian:trixie-slim` (two-stage)                   | `linux/amd64` (INLA x86_64)    | ~570 MB               | R chapkit services that use INLA. Full spatial + time-series R stack.   |
 
 All three set `WORKDIR /work` and default to
-`CMD ["chapkit","run",".","--host","0.0.0.0","--port","8000"]`, so mounting
-your MLproject into `/work` is enough:
+`CMD ["chapkit","run",".","--host","0.0.0.0","--port","8000"]`. The default
+CMD is handy for the MLproject flow (below); downstream `Dockerfile`s built
+on top of these images can override it to run their own entrypoint.
+
+### Run an MLproject directly
+
+Mount your MLproject into `/work` and let the built-in `chapkit run` serve it:
 
 ```bash
 docker run --rm -p 8000:8000 -v "$(pwd):/work" ghcr.io/dhis2-chap/chapkit-r:latest
@@ -24,6 +40,21 @@ docker run --rm -p 8000:8000 -v "$(pwd):/work" ghcr.io/dhis2-chap/chapkit-r:late
 See the [MLproject Runner guide](https://dhis2-chap.github.io/chapkit/guides/mlproject-runner/)
 for the full story (canonical MLproject parameter mapping, dynamic config,
 compose integration with chap-core, etc.).
+
+### Use as a base image
+
+`chapkit init` / `chapkit migrate` generate a project skeleton including a
+`Dockerfile` that `FROM`s one of these images and layers in your code and
+dependencies. Minimal hand-written example:
+
+```dockerfile
+FROM ghcr.io/dhis2-chap/chapkit-py:latest
+COPY pyproject.toml uv.lock main.py ./
+RUN uv pip install --system -e .
+CMD ["python", "main.py"]
+```
+
+`chapkit`, `uv`, and (for R images) `renv` + `pak` are already on `PATH`.
 
 ## Local builds
 
