@@ -7,11 +7,11 @@ down every commit on [`chapkit`](https://github.com/dhis2-chap/chapkit) itself.
 
 ## Published images
 
-| Image                                          | Base                                               | Arches                         | Purpose                                                                 |
-| ---------------------------------------------- | -------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------- |
-| `ghcr.io/dhis2-chap/chapkit-py:latest`         | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64`   | Python MLproject models. Lean.                                          |
-| `ghcr.io/dhis2-chap/chapkit-r:latest`          | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64`   | R MLproject models that do not need INLA. R 4.5 + `renv` + `pak`.       |
-| `ghcr.io/dhis2-chap/chapkit-r-inla:latest`     | `debian:trixie-slim` (two-stage)                   | `linux/amd64` (INLA x86_64)    | R MLproject models that use INLA. Full spatial + time-series R stack.   |
+| Image                                          | Base                                               | Arches                         | ~Size (amd64, pushed) | Purpose                                                                 |
+| ---------------------------------------------- | -------------------------------------------------- | ------------------------------ | --------------------- | ----------------------------------------------------------------------- |
+| `ghcr.io/dhis2-chap/chapkit-py:latest`         | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64`   | ~220 MB               | Python MLproject models. Lean.                                          |
+| `ghcr.io/dhis2-chap/chapkit-r:latest`          | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64`   | ~400 MB               | R MLproject models that do not need INLA. R 4.5 + `renv` + `pak`.       |
+| `ghcr.io/dhis2-chap/chapkit-r-inla:latest`     | `debian:trixie-slim` (two-stage)                   | `linux/amd64` (INLA x86_64)    | ~570 MB               | R MLproject models that use INLA. Full spatial + time-series R stack.   |
 
 All three set `WORKDIR /work` and default to
 `CMD ["chapkit","run",".","--host","0.0.0.0","--port","8000"]`, so mounting
