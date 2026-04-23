@@ -8,7 +8,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt update && apt install -y --no-install-recommends \
-        git build-essential pkg-config ca-certificates \
+        git curl jq build-essential pkg-config ca-certificates \
     && apt clean && rm -rf /var/lib/apt/lists/*
 
 # Clone chapkit at the requested ref (branch / tag / commit SHA) and

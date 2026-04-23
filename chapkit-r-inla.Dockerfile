@@ -77,7 +77,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # anything not already in the pre-baked site-library, which defeats a
 # lot of the reason for a fat image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates git \
+        ca-certificates git curl jq \
         r-base r-base-dev gfortran \
         # Dev headers for the same libs that INLA's package set depends
         # on - lets users install downstream R packages against them.
