@@ -24,7 +24,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates git \
+        ca-certificates git curl jq \
         # Full R toolchain so users can install extra CRAN packages / run
         # renv::restore() at container runtime against source tarballs.
         r-base r-base-dev gfortran \
