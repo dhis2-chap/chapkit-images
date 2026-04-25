@@ -35,11 +35,12 @@ permissions:
 
 env:
   # Resolve the chapkit ref for this run. workflow_dispatch input wins,
-  # otherwise repository_dispatch client_payload.ref, otherwise main.
+  # otherwise repository_dispatch client_payload.ref, otherwise the
+  # currently-targeted chapkit release tag.
   CHAPKIT_REF: >-
     ${{ github.event.inputs.chapkit_ref
         || github.event.client_payload.ref
-        || 'main' }}
+        || 'v0.22.0' }}
 
 jobs:
   build-py:
