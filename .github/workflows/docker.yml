@@ -40,7 +40,7 @@ env:
   CHAPKIT_REF: >-
     ${{ github.event.inputs.chapkit_ref
         || github.event.client_payload.ref
-        || 'v0.22.0' }}
+        || 'v0.23.0' }}
 
 jobs:
   build-py:
