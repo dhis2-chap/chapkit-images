@@ -105,7 +105,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Fail the build if the resolved CHAPKIT_REF installs a chapkit older
 # than the minimum version these images target.
-ARG CHAPKIT_MIN_VERSION=0.20.0
+ARG CHAPKIT_MIN_VERSION=0.22.0
 RUN /app/.venv/bin/python -c "import re, sys; from importlib.metadata import version; v=version('chapkit'); m=re.match(r'^(\d+)\.(\d+)\.(\d+)', v); got=tuple(int(x) for x in m.groups()); mn=tuple(int(x) for x in '${CHAPKIT_MIN_VERSION}'.split('.')); sys.exit(f'chapkit >= ${CHAPKIT_MIN_VERSION} required, got {v}') if got < mn else print(f'chapkit {v} >= ${CHAPKIT_MIN_VERSION}')"
 
 WORKDIR /work
