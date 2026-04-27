@@ -24,7 +24,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates git curl jq \
+        ca-certificates curl jq \
         # Full R toolchain so users can install extra CRAN packages / run
         # renv::restore() at container runtime against source tarballs.
         r-base r-base-dev gfortran \
@@ -42,27 +42,18 @@ RUN R -q -e "install.packages(c('renv','pak'), repos='https://cloud.r-project.or
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /uvx /usr/local/bin/
 
-# Clone chapkit at the requested ref (branch / tag / commit SHA) and
-# install its locked dep tree into /app/.venv via uv sync.
-ARG CHAPKIT_REPO=https://github.com/dhis2-chap/chapkit.git
-ARG CHAPKIT_REF=main
-
+# Install chapkit from PyPI into /app/.venv. Accepts a PEP 440 version
+# with or without a leading 'v' (e.g. 0.23.0 or v0.23.0).
+ARG CHAPKIT_VERSION=0.23.0
 RUN --mount=type=cache,target=/root/.cache/uv \
-    git clone --depth 1 --branch "${CHAPKIT_REF}" "${CHAPKIT_REPO}" /src/chapkit \
-    && cd /src/chapkit \
-    && uv python install 3.13 \
-    && UV_PROJECT_ENVIRONMENT=/app/.venv uv sync --frozen --no-dev --no-editable \
-    && rm -rf /src
-
-# Fail the build if the resolved CHAPKIT_REF installs a chapkit older
-# than the minimum version these images target.
-ARG CHAPKIT_MIN_VERSION=0.23.0
-RUN /app/.venv/bin/python -c "import re, sys; from importlib.metadata import version; v=version('chapkit'); m=re.match(r'^(\d+)\.(\d+)\.(\d+)', v); got=tuple(int(x) for x in m.groups()); mn=tuple(int(x) for x in '${CHAPKIT_MIN_VERSION}'.split('.')); sys.exit(f'chapkit >= ${CHAPKIT_MIN_VERSION} required, got {v}') if got < mn else print(f'chapkit {v} >= ${CHAPKIT_MIN_VERSION}')"
+    uv python install 3.13 \
+    && uv venv /app/.venv --python 3.13 \
+    && uv pip install --python /app/.venv/bin/python "chapkit==${CHAPKIT_VERSION#v}"
 
 WORKDIR /work
 
 EXPOSE 8000
 
-HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()" || exit 1
+HEALTHCHECK CMD curl -fsS http://localhost:8000/health || exit 1
 
 CMD ["chapkit", "run", ".", "--host", "0.0.0.0", "--port", "8000"]

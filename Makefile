@@ -1,10 +1,9 @@
 .PHONY: help build build-py build-r build-r-inla clean
 
-# Chapkit ref to clone/install inside each image. Override on the CLI:
-#   make build-py CHAPKIT_REF=v0.19.0
-#   make build-py CHAPKIT_REF=my-feature-branch
-CHAPKIT_REF ?= main
-CHAPKIT_REPO ?= https://github.com/dhis2-chap/chapkit.git
+# chapkit version to install from PyPI. Override on the CLI:
+#   make build-py CHAPKIT_VERSION=0.23.0
+# Accepts the bare PEP 440 version with or without a leading 'v'.
+CHAPKIT_VERSION ?= 0.23.0
 
 help:
 	@echo "chapkit-images"
@@ -17,31 +16,27 @@ help:
 	@echo "  clean        Remove locally-tagged :dev images"
 	@echo ""
 	@echo "Variables:"
-	@echo "  CHAPKIT_REF  Git ref to install (default: main). Set with:"
-	@echo "                 make build-py CHAPKIT_REF=v0.19.0"
-	@echo "  CHAPKIT_REPO Git URL (default: https://github.com/dhis2-chap/chapkit.git)"
+	@echo "  CHAPKIT_VERSION  chapkit PyPI version to install. Set with:"
+	@echo "                     make build-py CHAPKIT_VERSION=0.23.0"
 
 build: build-py build-r build-r-inla
 
 build-py:
-	@echo ">>> Building chapkit-py:dev (ref=$(CHAPKIT_REF))"
+	@echo ">>> Building chapkit-py:dev (chapkit==$(CHAPKIT_VERSION))"
 	@docker build \
-		--build-arg CHAPKIT_REPO=$(CHAPKIT_REPO) \
-		--build-arg CHAPKIT_REF=$(CHAPKIT_REF) \
+		--build-arg CHAPKIT_VERSION=$(CHAPKIT_VERSION) \
 		-f chapkit-py.Dockerfile -t chapkit-py:dev .
 
 build-r:
-	@echo ">>> Building chapkit-r:dev (ref=$(CHAPKIT_REF))"
+	@echo ">>> Building chapkit-r:dev (chapkit==$(CHAPKIT_VERSION))"
 	@docker build \
-		--build-arg CHAPKIT_REPO=$(CHAPKIT_REPO) \
-		--build-arg CHAPKIT_REF=$(CHAPKIT_REF) \
+		--build-arg CHAPKIT_VERSION=$(CHAPKIT_VERSION) \
 		-f chapkit-r.Dockerfile -t chapkit-r:dev .
 
 build-r-inla:
-	@echo ">>> Building chapkit-r-inla:dev (ref=$(CHAPKIT_REF))"
+	@echo ">>> Building chapkit-r-inla:dev (chapkit==$(CHAPKIT_VERSION))"
 	@docker build --platform=linux/amd64 \
-		--build-arg CHAPKIT_REPO=$(CHAPKIT_REPO) \
-		--build-arg CHAPKIT_REF=$(CHAPKIT_REF) \
+		--build-arg CHAPKIT_VERSION=$(CHAPKIT_VERSION) \
 		-f chapkit-r-inla.Dockerfile -t chapkit-r-inla:dev .
 
 clean:

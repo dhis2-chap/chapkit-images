@@ -42,7 +42,7 @@ published by this repo.
 - push to `main` — refresh `:latest`
 - tag `v*` — publish semver tag
 - `schedule` (weekly, Mon 04:17 UTC) — base-image security refresh
-- `workflow_dispatch` — manual with `chapkit_ref` input
+- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `0.23.0`)
 - `repository_dispatch` (`event_type: chapkit-release`) — fired by chapkit's release workflow
 
 After all three builds succeed, a `smoke` job pulls each `:main` image and
@@ -55,11 +55,11 @@ main-branch builds share cached layers via the registry.
 ## Local builds
 
 ```bash
-make build                           # all three, chapkit @ main
-make build-py                        # Python only
-make build-r                         # R base, multi-arch
-make build-r-inla                    # R + INLA, amd64
-make build-py CHAPKIT_REF=v0.19.0    # pin a branch, tag, or SHA
+make build                              # all three, default chapkit version
+make build-py                           # Python only
+make build-r                            # R base, multi-arch
+make build-r-inla                       # R + INLA, amd64
+make build-py CHAPKIT_VERSION=0.23.0    # pin a specific PyPI version
 ```
 
 ## Security posture
