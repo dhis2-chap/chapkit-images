@@ -3,8 +3,9 @@ name: Publish Docker images
 # Triggers:
 #   - push to main:   rebuild and publish :latest (for Dockerfile / workflow changes here)
 #   - schedule:       weekly refresh so pinned base images pull in security fixes
-#   - workflow_dispatch: manual trigger with a specific chapkit ref
-#                        (branch / tag / commit SHA). Defaults to "main".
+#   - workflow_dispatch: manual trigger with a specific chapkit version
+#                        from PyPI (e.g. 0.23.0). Defaults to the pinned
+#                        release below.
 #   - repository_dispatch (event=chapkit-release): a chapkit release fires
 #     this to rebuild the images against the released version.
 on:
@@ -22,10 +23,10 @@ on:
     - cron: '17 4 * * 1'  # every Monday 04:17 UTC
   workflow_dispatch:
     inputs:
-      chapkit_ref:
-        description: 'chapkit git ref to install (branch, tag, or SHA)'
+      chapkit_version:
+        description: 'chapkit PyPI version to install (e.g. 0.23.0)'
         required: false
-        default: 'main'
+        default: ''
   repository_dispatch:
     types: [chapkit-release]
 
@@ -34,13 +35,14 @@ permissions:
   packages: write
 
 env:
-  # Resolve the chapkit ref for this run. workflow_dispatch input wins,
-  # otherwise repository_dispatch client_payload.ref, otherwise the
-  # currently-targeted chapkit release tag.
-  CHAPKIT_REF: >-
-    ${{ github.event.inputs.chapkit_ref
+  # Resolve the chapkit version for this run. workflow_dispatch input
+  # wins, otherwise repository_dispatch client_payload.ref (which may
+  # come in as 'v0.23.0' or '0.23.0' — the Dockerfile strips a leading
+  # 'v'), otherwise the currently-pinned release.
+  CHAPKIT_VERSION: >-
+    ${{ github.event.inputs.chapkit_version
         || github.event.client_payload.ref
-        || 'v0.23.0' }}
+        || '0.23.0' }}
 
 jobs:
   build-py:
@@ -83,7 +85,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           build-args: |
-            CHAPKIT_REF=${{ env.CHAPKIT_REF }}
+            CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-py:buildcache
@@ -129,7 +131,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           build-args: |
-            CHAPKIT_REF=${{ env.CHAPKIT_REF }}
+            CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r:buildcache
@@ -172,7 +174,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64
           build-args: |
-            CHAPKIT_REF=${{ env.CHAPKIT_REF }}
+            CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-inla:buildcache
