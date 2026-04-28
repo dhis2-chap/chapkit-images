@@ -1,16 +1,25 @@
-# chapkit-r: R 4.5 (base) + Python 3.13 + chapkit + uv.
-# Multi-arch (linux/amd64, linux/arm64). Debian trixie ships both R 4.5
-# and Python 3.13 from distro apt; no CRAN apt dance, no Ubuntu PPA.
+# chapkit-r: R 4.5 (base) + Python 3.13 + uv, optionally with chapkit
+# pre-installed. Multi-arch (linux/amd64, linux/arm64). Debian trixie
+# ships both R 4.5 and Python 3.13 from distro apt; no CRAN apt dance,
+# no Ubuntu PPA.
 #
-# Scope: R MLprojects that do NOT require INLA. If you need INLA (or the
-# spatial/tsModel/dlnm R stack that chap-core EWARS-style models use),
-# pull chapkit-r-inla instead.
+# Two build targets:
+#   - runtime: R + uv + renv/pak + an empty Python 3.13 venv, no chapkit.
+#     Use as a FROM base for scaffolded chapkit services that pin their
+#     own chapkit version and install via `uv sync`.
+#   - bundled: runtime + a pinned chapkit from PyPI. Use for the
+#     `docker run ... chapkit mlproject run .` UX.
+#
+# Scope: R MLprojects that do NOT require INLA. If you need INLA (or
+# the spatial/tsModel/dlnm R stack that chap-core EWARS-style models
+# use), pull chapkit-r-inla instead.
 #
 # Security: runs as root. Non-root hardening needs the volume-mapping
 # dance from chap-core/compose.yml (tmpfs /tmp, per-user cache volumes)
 # and is a deferred follow-up.
 
-FROM debian:trixie-slim
+# ---------- Stage: runtime (no chapkit) ----------
+FROM debian:trixie-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -42,17 +51,22 @@ RUN R -q -e "install.packages(c('renv','pak'), repos='https://cloud.r-project.or
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /uvx /usr/local/bin/
 
-# Install chapkit from PyPI into /app/.venv. Accepts a PEP 440 version
-# with or without a leading 'v' (e.g. 0.23.0 or v0.23.0).
-ARG CHAPKIT_VERSION=0.23.0
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv python install 3.13 \
-    && uv venv /app/.venv --python 3.13 \
-    && uv pip install --python /app/.venv/bin/python "chapkit==${CHAPKIT_VERSION#v}"
+    && uv venv /app/.venv --python 3.13
 
 WORKDIR /work
 
 EXPOSE 8000
+
+# ---------- Stage: bundled (runtime + pinned chapkit) ----------
+FROM runtime AS bundled
+
+# Install chapkit from PyPI into /app/.venv. Accepts a PEP 440 version
+# with or without a leading 'v' (e.g. 0.23.0 or v0.23.0).
+ARG CHAPKIT_VERSION=0.23.0
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /app/.venv/bin/python "chapkit==${CHAPKIT_VERSION#v}"
 
 HEALTHCHECK CMD curl -fsS http://localhost:8000/health || exit 1
 

@@ -5,9 +5,9 @@ name: Publish Docker images
 #   - schedule:       weekly refresh so pinned base images pull in security fixes
 #   - workflow_dispatch: manual trigger with a specific chapkit version
 #                        from PyPI (e.g. 0.23.0). Defaults to the pinned
-#                        release below.
+#                        release below. Only affects bundled images.
 #   - repository_dispatch (event=chapkit-release): a chapkit release fires
-#     this to rebuild the images against the released version.
+#     this to rebuild the bundled images against the released version.
 on:
   push:
     branches: [main]
@@ -24,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       chapkit_version:
-        description: 'chapkit PyPI version to install (e.g. 0.23.0)'
+        description: 'chapkit PyPI version to install in bundled images (e.g. 0.23.0)'
         required: false
         default: ''
   repository_dispatch:
@@ -38,20 +38,54 @@ env:
   # Resolve the chapkit version for this run. workflow_dispatch input
   # wins, otherwise repository_dispatch client_payload.ref (which may
   # come in as 'v0.23.0' or '0.23.0' — the Dockerfile strips a leading
-  # 'v'), otherwise the currently-pinned release.
+  # 'v'), otherwise the currently-pinned release. Only consumed by the
+  # bundled matrix entries; runtime entries do not install chapkit.
   CHAPKIT_VERSION: >-
     ${{ github.event.inputs.chapkit_version
         || github.event.client_payload.ref
         || '0.23.0' }}
 
 jobs:
-  build-py:
-    name: chapkit-py
+  build:
+    # Six parallel matrix entries: {py, r, r-inla} x {runtime, bundled}.
+    # Runtime images contain Python/R + uv only and are intended as a
+    # FROM base for scaffolded chapkit services. Bundled images add a
+    # pinned chapkit from PyPI for the `chapkit mlproject run .` UX.
+    name: ${{ matrix.image }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: chapkit-py.Dockerfile
+            image: chapkit-py-runtime
+            target: runtime
+            platforms: linux/amd64,linux/arm64
+          - dockerfile: chapkit-py.Dockerfile
+            image: chapkit-py
+            target: bundled
+            platforms: linux/amd64,linux/arm64
+          - dockerfile: chapkit-r.Dockerfile
+            image: chapkit-r-runtime
+            target: runtime
+            platforms: linux/amd64,linux/arm64
+          - dockerfile: chapkit-r.Dockerfile
+            image: chapkit-r
+            target: bundled
+            platforms: linux/amd64,linux/arm64
+          - dockerfile: chapkit-r-inla.Dockerfile
+            image: chapkit-r-inla-runtime
+            target: runtime
+            platforms: linux/amd64
+          - dockerfile: chapkit-r-inla.Dockerfile
+            image: chapkit-r-inla
+            target: bundled
+            platforms: linux/amd64
     steps:
       - uses: actions/checkout@v5
 
       - name: Set up QEMU
+        if: contains(matrix.platforms, 'arm64')
         uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
@@ -68,7 +102,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/dhis2-chap/chapkit-py
+          images: ghcr.io/dhis2-chap/${{ matrix.image }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -81,108 +115,23 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: chapkit-py.Dockerfile
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platforms }}
+          # CHAPKIT_VERSION is only consumed by the bundled stage; the
+          # runtime stage doesn't reference the ARG so passing it here
+          # is a no-op for runtime entries.
           build-args: |
             CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-py:buildcache
-          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-py:buildcache,mode=max,image-manifest=true
-
-  build-r:
-    name: chapkit-r
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to ghcr.io
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/dhis2-chap/chapkit-r
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: chapkit-r.Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r:buildcache
-          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r:buildcache,mode=max,image-manifest=true
-
-  build-r-inla:
-    name: chapkit-r-inla
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to ghcr.io
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/dhis2-chap/chapkit-r-inla
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: chapkit-r-inla.Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64
-          build-args: |
-            CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-inla:buildcache
-          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-inla:buildcache,mode=max,image-manifest=true
+          cache-from: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache,mode=max,image-manifest=true
 
   smoke:
     name: smoke
-    needs: [build-py, build-r, build-r-inla]
+    needs: [build]
     # Only run after images are actually pushed (not on PR builds where
     # push is skipped). Limits to refs/heads/main so we pull :main — tag
     # builds use a different tag scheme and can gain their own smoke job
@@ -197,16 +146,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Smoke chapkit-py
+      # Bundled images: chapkit is pre-installed, so `chapkit --help` works.
+      - name: Smoke chapkit-py (bundled)
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-py:main chapkit --help
 
-      - name: Smoke chapkit-r
+      - name: Smoke chapkit-r (bundled)
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-r:main chapkit --help
 
-      - name: Smoke chapkit-r-inla (CLI)
+      - name: Smoke chapkit-r-inla (bundled, CLI)
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla:main chapkit --help
 
-      - name: Smoke chapkit-r-inla (INLA loads)
+      - name: Smoke chapkit-r-inla (bundled, INLA loads)
         run: |
           docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla:main \
             R -q -e "library(INLA); cat('INLA', as.character(packageVersion('INLA')), '\n')"
+
+      # Runtime images: chapkit is intentionally absent. Verify uv is on
+      # PATH so downstream `uv sync` works.
+      - name: Smoke chapkit-py-runtime
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-runtime:main uv --version
+
+      - name: Smoke chapkit-r-runtime
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-runtime:main uv --version
+
+      - name: Smoke chapkit-r-inla-runtime
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla-runtime:main uv --version
