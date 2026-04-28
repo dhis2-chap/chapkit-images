@@ -1,12 +1,13 @@
-# chapkit-py: Python 3.13 + uv, optionally with chapkit pre-installed.
+# chapkit-py: Python 3.13 + uv. Two build targets, published as:
 #
-# Two build targets:
-#   - runtime: Python 3.13 + uv, no chapkit. Use as a FROM base for
-#     scaffolded chapkit services that pin their own chapkit version
-#     and install via `uv sync`.
-#   - bundled: runtime + a pinned chapkit from PyPI. Use for the
-#     `docker run -v $PWD:/work ... chapkit mlproject run .` UX where
-#     the user does not provide their own pyproject.toml.
+#   - chapkit-py     (target: runtime) Python 3.13 + uv, no chapkit.
+#                    FROM base for scaffolded chapkit services that
+#                    pin their own chapkit version and install via
+#                    `uv sync`.
+#   - chapkit-py-cli (target: bundled) runtime + a pinned chapkit from
+#                    PyPI. For invoking the chapkit CLI directly via
+#                    `docker run ... chapkit <subcommand>` without
+#                    needing a pyproject.toml or `uv sync` step.
 #
 # Multi-arch (linux/amd64, linux/arm64).
 

@@ -1,6 +1,5 @@
-# chapkit-r-inla: R 4.5 + INLA + spatial/time-series R stack + Python 3.13
-# + uv, optionally with chapkit pre-installed. amd64 only (INLA ships
-# x86_64 Linux binaries only).
+# chapkit-r-inla: R 4.5 + INLA + spatial/time-series R stack + Python
+# 3.13 + uv. amd64 only (INLA ships x86_64 Linux binaries only).
 #
 # Three build stages:
 #   1. inla-builder: full toolchain, compiles INLA + R packages against
@@ -10,10 +9,15 @@
 #      site-library + uv-managed Python 3.13 venv. No chapkit.
 #   3. bundled: runtime + a pinned chapkit from PyPI.
 #
-# Two build targets:
-#   - runtime: use as a FROM base for scaffolded chapkit services that
-#     pin their own chapkit version and install via `uv sync`.
-#   - bundled: for the `docker run ... chapkit mlproject run .` UX.
+# Published as:
+#
+#   - chapkit-r-inla     (target: runtime) FROM base for scaffolded
+#                        chapkit services that pin their own chapkit
+#                        version and install via `uv sync`.
+#   - chapkit-r-inla-cli (target: bundled) runtime + a pinned chapkit
+#                        from PyPI. For invoking the chapkit CLI
+#                        directly via `docker run ... chapkit
+#                        <subcommand>`.
 #
 # Pre-installed R packages (aligned with chap-core R-model needs):
 #   fmesher, INLA, dlnm, yaml, jsonlite, dplyr, readr,

@@ -1,14 +1,16 @@
-# chapkit-r: R 4.5 (base) + Python 3.13 + uv, optionally with chapkit
-# pre-installed. Multi-arch (linux/amd64, linux/arm64). Debian trixie
-# ships both R 4.5 and Python 3.13 from distro apt; no CRAN apt dance,
-# no Ubuntu PPA.
+# chapkit-r: R 4.5 (base) + Python 3.13 + uv + renv/pak. Multi-arch
+# (linux/amd64, linux/arm64). Debian trixie ships both R 4.5 and Python
+# 3.13 from distro apt; no CRAN apt dance, no Ubuntu PPA.
 #
-# Two build targets:
-#   - runtime: R + uv + renv/pak + an empty Python 3.13 venv, no chapkit.
-#     Use as a FROM base for scaffolded chapkit services that pin their
-#     own chapkit version and install via `uv sync`.
-#   - bundled: runtime + a pinned chapkit from PyPI. Use for the
-#     `docker run ... chapkit mlproject run .` UX.
+# Two build targets, published as:
+#
+#   - chapkit-r     (target: runtime) R + uv + renv/pak + an empty
+#                   Python 3.13 venv, no chapkit. FROM base for
+#                   scaffolded chapkit services that pin their own
+#                   chapkit version and install via `uv sync`.
+#   - chapkit-r-cli (target: bundled) runtime + a pinned chapkit from
+#                   PyPI. For invoking the chapkit CLI directly via
+#                   `docker run ... chapkit <subcommand>`.
 #
 # Scope: R MLprojects that do NOT require INLA. If you need INLA (or
 # the spatial/tsModel/dlnm R stack that chap-core EWARS-style models

@@ -5,9 +5,9 @@ name: Publish Docker images
 #   - schedule:       weekly refresh so pinned base images pull in security fixes
 #   - workflow_dispatch: manual trigger with a specific chapkit version
 #                        from PyPI (e.g. 0.23.0). Defaults to the pinned
-#                        release below. Only affects bundled images.
+#                        release below. Only affects -cli images.
 #   - repository_dispatch (event=chapkit-release): a chapkit release fires
-#     this to rebuild the bundled images against the released version.
+#     this to rebuild the -cli images against the released version.
 on:
   push:
     branches: [main]
@@ -20,11 +20,12 @@ on:
       - 'chapkit-r-inla.Dockerfile'
       - '.github/workflows/docker.yml'
   schedule:
-    - cron: '17 4 * * 1'  # every Monday 04:17 UTC
+    - cron: '17 4 * * *'  # nightly at 04:17 UTC — refreshes :latest / :main
+                          # and stamps :dev so consumers can pin to nightly.
   workflow_dispatch:
     inputs:
       chapkit_version:
-        description: 'chapkit PyPI version to install in bundled images (e.g. 0.23.0)'
+        description: 'chapkit PyPI version to install in -cli images (e.g. 0.23.0)'
         required: false
         default: ''
   repository_dispatch:
@@ -39,7 +40,7 @@ env:
   # wins, otherwise repository_dispatch client_payload.ref (which may
   # come in as 'v0.23.0' or '0.23.0' — the Dockerfile strips a leading
   # 'v'), otherwise the currently-pinned release. Only consumed by the
-  # bundled matrix entries; runtime entries do not install chapkit.
+  # -cli matrix entries; base entries do not install chapkit.
   CHAPKIT_VERSION: >-
     ${{ github.event.inputs.chapkit_version
         || github.event.client_payload.ref
@@ -47,10 +48,10 @@ env:
 
 jobs:
   build:
-    # Six parallel matrix entries: {py, r, r-inla} x {runtime, bundled}.
-    # Runtime images contain Python/R + uv only and are intended as a
-    # FROM base for scaffolded chapkit services. Bundled images add a
-    # pinned chapkit from PyPI for the `chapkit mlproject run .` UX.
+    # Six parallel matrix entries: {py, r, r-inla} x {base, cli}.
+    # Base images contain Python/R + uv only and are intended as a FROM
+    # base for scaffolded chapkit services. -cli images add a pinned
+    # chapkit from PyPI for invoking the chapkit CLI directly.
     name: ${{ matrix.image }}
     runs-on: ubuntu-latest
     strategy:
@@ -58,27 +59,27 @@ jobs:
       matrix:
         include:
           - dockerfile: chapkit-py.Dockerfile
-            image: chapkit-py-runtime
+            image: chapkit-py
             target: runtime
             platforms: linux/amd64,linux/arm64
           - dockerfile: chapkit-py.Dockerfile
-            image: chapkit-py
+            image: chapkit-py-cli
             target: bundled
-            platforms: linux/amd64,linux/arm64
-          - dockerfile: chapkit-r.Dockerfile
-            image: chapkit-r-runtime
-            target: runtime
             platforms: linux/amd64,linux/arm64
           - dockerfile: chapkit-r.Dockerfile
             image: chapkit-r
+            target: runtime
+            platforms: linux/amd64,linux/arm64
+          - dockerfile: chapkit-r.Dockerfile
+            image: chapkit-r-cli
             target: bundled
             platforms: linux/amd64,linux/arm64
           - dockerfile: chapkit-r-inla.Dockerfile
-            image: chapkit-r-inla-runtime
+            image: chapkit-r-inla
             target: runtime
             platforms: linux/amd64
           - dockerfile: chapkit-r-inla.Dockerfile
-            image: chapkit-r-inla
+            image: chapkit-r-inla-cli
             target: bundled
             platforms: linux/amd64
     steps:
@@ -121,7 +122,7 @@ jobs:
           platforms: ${{ matrix.platforms }}
           # CHAPKIT_VERSION is only consumed by the bundled stage; the
           # runtime stage doesn't reference the ARG so passing it here
-          # is a no-op for runtime entries.
+          # is a no-op for base entries.
           build-args: |
             CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -146,28 +147,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Bundled images: chapkit is pre-installed, so `chapkit --help` works.
-      - name: Smoke chapkit-py (bundled)
-        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py:main chapkit --help
-
-      - name: Smoke chapkit-r (bundled)
-        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r:main chapkit --help
-
-      - name: Smoke chapkit-r-inla (bundled, CLI)
-        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla:main chapkit --help
-
-      - name: Smoke chapkit-r-inla (bundled, INLA loads)
-        run: |
-          docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla:main \
-            R -q -e "library(INLA); cat('INLA', as.character(packageVersion('INLA')), '\n')"
-
-      # Runtime images: chapkit is intentionally absent. Verify uv is on
+      # Base images: chapkit is intentionally absent. Verify uv is on
       # PATH so downstream `uv sync` works.
-      - name: Smoke chapkit-py-runtime
-        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-runtime:main uv --version
+      - name: Smoke chapkit-py
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py:main uv --version
 
-      - name: Smoke chapkit-r-runtime
-        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-runtime:main uv --version
+      - name: Smoke chapkit-r
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r:main uv --version
 
-      - name: Smoke chapkit-r-inla-runtime
-        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla-runtime:main uv --version
+      - name: Smoke chapkit-r-inla
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla:main uv --version
+
+      # -cli images: chapkit is pre-installed, so `chapkit --help` works.
+      - name: Smoke chapkit-py-cli
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-cli:main chapkit --help
+
+      - name: Smoke chapkit-r-cli
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-cli:main chapkit --help
+
+      - name: Smoke chapkit-r-inla-cli (CLI)
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla-cli:main chapkit --help
+
+      - name: Smoke chapkit-r-inla-cli (INLA loads)
+        run: |
+          docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla-cli:main \
+            R -q -e "library(INLA); cat('INLA', as.character(packageVersion('INLA')), '\n')"
