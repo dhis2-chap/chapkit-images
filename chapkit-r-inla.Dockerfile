@@ -88,7 +88,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # anything not already in the pre-baked site-library, which defeats a
 # lot of the reason for a fat image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl jq \
+        ca-certificates curl jq git \
         r-base r-base-dev gfortran \
         # Dev headers for the same libs that INLA's package set depends
         # on - lets users install downstream R packages against them.
@@ -115,11 +115,23 @@ EXPOSE 8000
 #############################
 FROM runtime AS bundled
 
-# Install chapkit from PyPI into /app/.venv. Accepts a PEP 440 version
-# with or without a leading 'v' (e.g. 0.23.0 or v0.23.0).
+# Install chapkit into /app/.venv. Two install paths:
+#   - default: PyPI release. Set CHAPKIT_VERSION to a PEP 440 version
+#     with or without a leading 'v' (e.g. 0.23.0 or v0.23.0).
+#   - override: git ref. Set CHAPKIT_GIT_REF to a branch / tag / SHA
+#     (e.g. main) to install from
+#     git+https://github.com/dhis2-chap/chapkit.git@<ref>. Used by the
+#     nightly :dev build to track chapkit's main branch.
 ARG CHAPKIT_VERSION=0.23.0
+ARG CHAPKIT_GIT_REF=
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python /app/.venv/bin/python "chapkit==${CHAPKIT_VERSION#v}"
+    if [ -n "${CHAPKIT_GIT_REF}" ]; then \
+        uv pip install --python /app/.venv/bin/python \
+            "git+https://github.com/dhis2-chap/chapkit.git@${CHAPKIT_GIT_REF}"; \
+    else \
+        uv pip install --python /app/.venv/bin/python \
+            "chapkit==${CHAPKIT_VERSION#v}"; \
+    fi
 
 HEALTHCHECK CMD curl -fsS http://localhost:8000/health || exit 1
 

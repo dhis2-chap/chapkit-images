@@ -39,9 +39,12 @@ toolchain) are identical.
 
 Tag conventions:
 
-- `:latest` / `:main` — tip of `main`
+- `:latest` / `:main` — tip of `main` (chapkit installed from PyPI for `-cli` images)
 - `:sha-<short>` — per-commit
 - `:<semver>` — on tag pushes (e.g. `:0.19.0`, `:0.19`)
+- `:dev` — `-cli` images only; nightly rebuild with `chapkit` installed
+  from the `main` branch of `github.com/dhis2-chap/chapkit` instead of
+  PyPI. Use this to test against unpublished `chapkit` changes.
 
 ## Using chapkit
 
@@ -70,7 +73,9 @@ a single matrix job. Triggers:
 After all six builds succeed, a `smoke` job pulls each `:main` image and
 runs `chapkit --help` against the `-cli` tags (plus `library(INLA)` for
 `chapkit-r-inla-cli`) and `uv --version` against the base tags, to catch
-broken publishes.
+broken publishes. On scheduled / `workflow_dispatch` runs, a parallel
+`build-dev` job rebuilds the three `-cli` images against `chapkit` main
+and tags them `:dev`; a corresponding `smoke-dev` job exercises those.
 
 Build cache is pushed to a `:buildcache` tag alongside each image so PR and
 main-branch builds share cached layers via the registry.

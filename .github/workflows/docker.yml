@@ -2,12 +2,22 @@ name: Publish Docker images
 
 # Triggers:
 #   - push to main:   rebuild and publish :latest (for Dockerfile / workflow changes here)
-#   - schedule:       weekly refresh so pinned base images pull in security fixes
+#   - schedule:       nightly refresh of :latest / :main (base-image security fixes)
+#                     and a fresh :dev build of -cli images from chapkit's main branch.
 #   - workflow_dispatch: manual trigger with a specific chapkit version
 #                        from PyPI (e.g. 0.23.0). Defaults to the pinned
-#                        release below. Only affects -cli images.
+#                        release below. Only affects -cli images. Also
+#                        triggers a :dev rebuild.
 #   - repository_dispatch (event=chapkit-release): a chapkit release fires
 #     this to rebuild the -cli images against the released version.
+#
+# Tag scheme:
+#   - :latest / :main / :sha-* / :<semver>  -- chapkit installed from PyPI
+#                                              (release version pinned in env below)
+#   - :dev                                  -- chapkit installed from the main branch
+#                                              of github.com/dhis2-chap/chapkit
+#                                              (only on -cli images; base images
+#                                              don't have chapkit so :dev is N/A)
 on:
   push:
     branches: [main]
@@ -130,6 +140,64 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
           cache-to: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache,mode=max,image-manifest=true
 
+  build-dev:
+    # Nightly :dev build of -cli images against chapkit's main branch.
+    # Only runs on schedule and workflow_dispatch. Base images are not
+    # rebuilt here — they don't carry chapkit, so :dev would be a
+    # duplicate of :latest.
+    #
+    # CHAPKIT_GIT_REF=main means uv installs from a literal `@main` ref.
+    # BuildKit's layer cache is keyed on the RUN command text, so the
+    # bundled-stage cache may serve a stale chapkit until something
+    # earlier in the build invalidates the layer. In practice, nightly
+    # base-image layer churn handles this often enough.
+    name: ${{ matrix.image }}:dev
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: chapkit-py.Dockerfile
+            image: chapkit-py-cli
+            platforms: linux/amd64,linux/arm64
+          - dockerfile: chapkit-r.Dockerfile
+            image: chapkit-r-cli
+            platforms: linux/amd64,linux/arm64
+          - dockerfile: chapkit-r-inla.Dockerfile
+            image: chapkit-r-inla-cli
+            platforms: linux/amd64
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        if: contains(matrix.platforms, 'arm64')
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push :dev
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: bundled
+          push: true
+          platforms: ${{ matrix.platforms }}
+          build-args: |
+            CHAPKIT_GIT_REF=main
+          tags: ghcr.io/dhis2-chap/${{ matrix.image }}:dev
+          cache-from: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache,mode=max,image-manifest=true
+
   smoke:
     name: smoke
     needs: [build]
@@ -171,4 +239,31 @@ jobs:
       - name: Smoke chapkit-r-inla-cli (INLA loads)
         run: |
           docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla-cli:main \
+            R -q -e "library(INLA); cat('INLA', as.character(packageVersion('INLA')), '\n')"
+
+  smoke-dev:
+    name: smoke-dev
+    needs: [build-dev]
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke chapkit-py-cli :dev
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-cli:dev chapkit --help
+
+      - name: Smoke chapkit-r-cli :dev
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-cli:dev chapkit --help
+
+      - name: Smoke chapkit-r-inla-cli :dev (CLI)
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla-cli:dev chapkit --help
+
+      - name: Smoke chapkit-r-inla-cli :dev (INLA loads)
+        run: |
+          docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla-cli:dev \
             R -q -e "library(INLA); cat('INLA', as.character(packageVersion('INLA')), '\n')"
