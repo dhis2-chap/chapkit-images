@@ -26,9 +26,9 @@
 #                        <subcommand>`.
 #
 # Pre-installed R packages (in addition to chapkit-r-tidyverse's
-# tidyverse + tidyverts stack):
-#   fmesher, INLA, dlnm, sf, spdep, sn, tsModel, xgboost, jsonlite
-#   (yaml, dplyr, readr already covered by chapkit-r-tidyverse)
+# tidyverse + tidyverts + ML stack):
+#   fmesher, INLA, dlnm, sf, spdep, sn, tsModel, jsonlite
+#   (yaml, dplyr, readr, xgboost already covered by chapkit-r-tidyverse)
 #
 # Security: runs as root. Non-root hardening needs the volume-mapping
 # dance from chap-core/compose.yml and is a deferred follow-up.
@@ -68,7 +68,7 @@ RUN R -q -e "install.packages('fmesher', \
     && R -q -e "install.packages('INLA', \
         repos = c('https://cloud.r-project.org', INLA = 'https://inla.r-inla-download.org/R/stable'), \
         dep = FALSE)" \
-    && R -q -e "install.packages(c('dlnm','jsonlite','sf','spdep','sn','tsModel','xgboost'), \
+    && R -q -e "install.packages(c('dlnm','jsonlite','sf','spdep','sn','tsModel'), \
         repos='https://cloud.r-project.org')" \
     && R -q -e "library(INLA); INLA::inla.prune()"
 
