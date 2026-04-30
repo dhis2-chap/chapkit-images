@@ -16,7 +16,8 @@
 #
 # Pre-installed R packages (on top of chapkit-r's renv + pak):
 #   tidyverse, fable, tsibble, feasts, lubridate, distributional,
-#   forecast, urca, tseries, zoo, xts, readxl
+#   forecast, urca, tseries, zoo, xts, readxl,
+#   ranger, randomForest, glmnet
 #
 # Most R model authors are statisticians, not Docker users — keeping
 # the iteration loop tight matters more than image leanness. The
@@ -42,6 +43,22 @@
 #   - readxl                   : Excel reader (epidemiologists ship
 #                                their data this way more often than
 #                                they should).
+#   - ranger, randomForest     : random forests. ranger is the modern,
+#                                fast, parallel implementation (and
+#                                what tidymodels uses underneath);
+#                                randomForest is the classic Breiman
+#                                package that older code still
+#                                imports. Both are small (~3 MB and
+#                                ~1 MB) so we include them rather than
+#                                force a per-model install.
+#   - glmnet                   : Lasso / elastic-net regularised
+#                                regression. Small (~5 MB) and a
+#                                staple of high-dimensional epi /
+#                                stats workflows.
+#
+# Heavier ML frameworks (tidymodels, brms, rstanarm, mlr3) are NOT
+# bundled — they're opinionated and add 100s of MB. Add them in a
+# downstream layer or a sibling image variant if/when needed.
 #
 # Sits between chapkit-r (lean base) and chapkit-r-inla (R + INLA + the
 # spatial/forecasting R stack). Models that need INLA should pull
@@ -69,7 +86,10 @@ RUN R -q -e "pak::pkg_install(c( \
         'tseries', \
         'zoo', \
         'xts', \
-        'readxl' \
+        'readxl', \
+        'ranger', \
+        'randomForest', \
+        'glmnet' \
     ), upgrade = FALSE)"
 
 # Trim help/docs/html — saves a few hundred MB (tidyverse's manuals
