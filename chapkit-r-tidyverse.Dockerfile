@@ -15,13 +15,18 @@
 #                             chapkit <subcommand>`.
 #
 # Pre-installed R packages (on top of chapkit-r's renv + pak):
-#   tidyverse, fable, tsibble, lubridate, feasts
+#   tidyverse, fable, tsibble, lubridate, feasts, distributional,
+#   urca, tseries
 #
 # tidyverse adds ~400 MB but it is the de facto data-wrangling stack in
 # the R ecosystem (see rocker/tidyverse usage on Docker Hub) and the
 # common case for forecasting models. fable + tsibble + feasts are the
 # tidyverts forecasting trio; lubridate is core tidyverse but listed
-# explicitly for clarity.
+# explicitly for clarity. distributional is the probabilistic-forecast
+# helper auto_arima/install_packages.R pins. urca + tseries provide
+# stationarity / unit-root tests that fable::ARIMA reaches for via
+# Suggests and that the older `forecast` package depends on directly,
+# so models using either stack don't need to re-install them.
 #
 # Sits between chapkit-r (lean base) and chapkit-r-inla (R + INLA + the
 # spatial/forecasting R stack). Models that need INLA should pull
@@ -42,7 +47,10 @@ RUN R -q -e "pak::pkg_install(c( \
         'fable', \
         'tsibble', \
         'lubridate', \
-        'feasts' \
+        'feasts', \
+        'distributional', \
+        'urca', \
+        'tseries' \
     ), upgrade = FALSE)"
 
 # Trim help/docs/html — saves a few hundred MB (tidyverse's manuals
