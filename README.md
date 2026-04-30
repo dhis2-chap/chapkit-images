@@ -67,7 +67,7 @@ a single matrix job. Triggers:
 - push to `main` — refresh `:latest`
 - tag `v*` — publish semver tag
 - `schedule` (weekly, Mon 04:17 UTC) — base-image security refresh
-- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `0.23.0`; only affects `-cli` images)
+- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `0.24.0`; only affects `-cli` images)
 - `repository_dispatch` (`event_type: chapkit-release`) — fired by chapkit's release workflow (rebuilds `-cli` images against the released version)
 
 After all six builds succeed, a `smoke` job pulls each `:main` image and
@@ -90,7 +90,7 @@ make build-r                            # base R, multi-arch
 make build-r-cli                        # R with chapkit pre-installed
 make build-r-inla                       # base R + INLA, amd64
 make build-r-inla-cli                   # R + INLA with chapkit pre-installed
-make build-py-cli CHAPKIT_VERSION=0.23.0   # pin a specific PyPI version
+make build-py-cli CHAPKIT_VERSION=0.24.0   # pin a specific PyPI version
 ```
 
 ## Security posture
@@ -100,10 +100,3 @@ volume-mapping dance used by
 [`chap-core/compose.yml`](https://github.com/dhis2-chap/chap-core/blob/main/compose.yml)
 (tmpfs `/tmp`, per-user cache volumes) and is a planned follow-up. Intended
 to sit in a trusted compose network behind chap-core.
-
-## Adapted from
-
-The R + INLA build patterns are adapted from
-[`mortenoh/r-docker-images`](https://github.com/mortenoh/r-docker-images),
-which proved out the `debian:trixie-slim` + native R 4.5 + INLA-from-CRAN
-approach.

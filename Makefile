@@ -6,10 +6,10 @@
         clean
 
 # chapkit version to install from PyPI. Override on the CLI:
-#   make build-py-cli CHAPKIT_VERSION=0.23.0
+#   make build-py-cli CHAPKIT_VERSION=0.24.0
 # Accepts the bare PEP 440 version with or without a leading 'v'.
 # Only used by the -cli targets; the base targets do not install chapkit.
-CHAPKIT_VERSION ?= 0.23.0
+CHAPKIT_VERSION ?= 0.24.0
 
 help:
 	@echo "chapkit-images"
@@ -31,7 +31,7 @@ help:
 	@echo ""
 	@echo "Variables:"
 	@echo "  CHAPKIT_VERSION  chapkit PyPI version for -cli targets. Set with:"
-	@echo "                     make build-py-cli CHAPKIT_VERSION=0.23.0"
+	@echo "                     make build-py-cli CHAPKIT_VERSION=0.24.0"
 	@echo ""
 	@echo "Image hierarchy (each layer FROM the previous):"
 	@echo "  chapkit-py        Python + uv"

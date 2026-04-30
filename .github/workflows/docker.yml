@@ -5,7 +5,7 @@ name: Publish Docker images
 #   - schedule:       nightly refresh of :latest / :main (base-image security fixes)
 #                     and a fresh :dev build of -cli images from chapkit's main branch.
 #   - workflow_dispatch: manual trigger with a specific chapkit version
-#                        from PyPI (e.g. 0.23.0). Defaults to the pinned
+#                        from PyPI (e.g. 0.24.0). Defaults to the pinned
 #                        release below. Only affects -cli images. Also
 #                        triggers a :dev rebuild.
 #   - repository_dispatch (event=chapkit-release): a chapkit release fires
@@ -36,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       chapkit_version:
-        description: 'chapkit PyPI version to install in -cli images (e.g. 0.23.0)'
+        description: 'chapkit PyPI version to install in -cli images (e.g. 0.24.0)'
         required: false
         default: ''
   repository_dispatch:
@@ -49,13 +49,13 @@ permissions:
 env:
   # Resolve the chapkit version for this run. workflow_dispatch input
   # wins, otherwise repository_dispatch client_payload.ref (which may
-  # come in as 'v0.23.0' or '0.23.0' — the Dockerfile strips a leading
+  # come in as 'v0.24.0' or '0.24.0' — the Dockerfile strips a leading
   # 'v'), otherwise the currently-pinned release. Only consumed by the
   # -cli matrix entries; base entries do not install chapkit.
   CHAPKIT_VERSION: >-
     ${{ github.event.inputs.chapkit_version
         || github.event.client_payload.ref
-        || '0.23.0' }}
+        || '0.24.0' }}
 
 jobs:
   # Resolve a tag downstream phases can FROM. We use the short SHA

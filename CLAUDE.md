@@ -60,7 +60,7 @@ make build-r                    # R base, multi-arch.
 make build-r-inla               # R + INLA, amd64 only.
 
 # Pin a specific chapkit ref (branch / tag / SHA):
-make build-py CHAPKIT_VERSION=0.23.0
+make build-py CHAPKIT_VERSION=0.24.0
 ```
 
 ## CI / publishing
@@ -71,7 +71,7 @@ Triggers:
 - push to `main` — updates `:main` / `:latest`
 - tag `v*` — publishes the matching semver tag
 - `schedule` (weekly, Mon 04:17 UTC) — picks up base-image security fixes
-- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `0.23.0`)
+- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `0.24.0`)
 - `repository_dispatch` (`event_type: chapkit-release`) — chapkit's release workflow fires this
 
 After all three builds succeed, a `smoke` job pulls each `:main` image and runs `chapkit --help` (plus `library(INLA)` for `chapkit-r-inla`) to catch broken publishes.
