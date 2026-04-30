@@ -15,18 +15,33 @@
 #                             chapkit <subcommand>`.
 #
 # Pre-installed R packages (on top of chapkit-r's renv + pak):
-#   tidyverse, fable, tsibble, lubridate, feasts, distributional,
-#   urca, tseries
+#   tidyverse, fable, tsibble, feasts, lubridate, distributional,
+#   forecast, urca, tseries, zoo, xts, readxl
 #
-# tidyverse adds ~400 MB but it is the de facto data-wrangling stack in
-# the R ecosystem (see rocker/tidyverse usage on Docker Hub) and the
-# common case for forecasting models. fable + tsibble + feasts are the
-# tidyverts forecasting trio; lubridate is core tidyverse but listed
-# explicitly for clarity. distributional is the probabilistic-forecast
-# helper auto_arima/install_packages.R pins. urca + tseries provide
-# stationarity / unit-root tests that fable::ARIMA reaches for via
-# Suggests and that the older `forecast` package depends on directly,
-# so models using either stack don't need to re-install them.
+# Most R model authors are statisticians, not Docker users — keeping
+# the iteration loop tight matters more than image leanness. The
+# bundle covers what an R forecasting/ML author would reach for:
+#
+#   - tidyverse                : the de facto data-wrangling stack
+#                                (rocker/tidyverse traffic confirms
+#                                this is what R users expect).
+#   - fable, tsibble, feasts,  : the tidyverts forecasting trio plus
+#     lubridate, distributional  the helper objects forecast outputs
+#                                pass around.
+#   - forecast                 : the older, widely-used Hyndman
+#                                forecasting package (auto.arima,
+#                                ets, ...). Distinct ecosystem from
+#                                fable but ubiquitous in epi/stats
+#                                code.
+#   - urca, tseries            : stationarity / unit-root tests that
+#                                fable::ARIMA reaches for via
+#                                Suggests and that the `forecast`
+#                                package imports directly.
+#   - zoo, xts                 : time-series object primitives that
+#                                most R ts code touches at some point.
+#   - readxl                   : Excel reader (epidemiologists ship
+#                                their data this way more often than
+#                                they should).
 #
 # Sits between chapkit-r (lean base) and chapkit-r-inla (R + INLA + the
 # spatial/forecasting R stack). Models that need INLA should pull
@@ -49,8 +64,12 @@ RUN R -q -e "pak::pkg_install(c( \
         'lubridate', \
         'feasts', \
         'distributional', \
+        'forecast', \
         'urca', \
-        'tseries' \
+        'tseries', \
+        'zoo', \
+        'xts', \
+        'readxl' \
     ), upgrade = FALSE)"
 
 # Trim help/docs/html — saves a few hundred MB (tidyverse's manuals
