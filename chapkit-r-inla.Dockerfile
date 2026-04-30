@@ -1,12 +1,18 @@
-# chapkit-r-inla: R 4.5 + INLA + spatial/time-series R stack + Python
-# 3.13 + uv. amd64 only (INLA ships x86_64 Linux binaries only).
+# chapkit-r-inla: R 4.5 + tidyverse + INLA + spatial/time-series R
+# stack + Python 3.13 + uv. amd64 only (INLA ships x86_64 Linux
+# binaries only).
 #
 # Three build stages:
-#   1. inla-builder: full toolchain, compiles INLA + R packages against
-#      CRAN and the INLA binary repo, then strips debug symbols and
-#      removes help/docs from the compiled site-library.
-#   2. runtime: trixie-slim + r-base + runtime shared libs + the copied
-#      site-library + uv-managed Python 3.13 venv. No chapkit.
+#   1. inla-builder: full toolchain on debian:trixie-slim, compiles
+#      INLA + the spatial/EWARS R packages against CRAN and the INLA
+#      binary repo, then strips debug symbols and removes help/docs
+#      from the compiled site-library.
+#   2. runtime: FROM chapkit-r-tidyverse (so we inherit r-base, uv,
+#      Python 3.13 venv, tidyverse, fable, tsibble, lubridate, feasts).
+#      Adds spatial dev libs (libgdal/libgeos/libproj/libudunits/libgsl)
+#      that the copied INLA site-library links against, then merges the
+#      site-library from inla-builder via `cp -rn` (chapkit-r-tidyverse
+#      packages win on overlap). No chapkit.
 #   3. bundled: runtime + a pinned chapkit from PyPI.
 #
 # Published as:
@@ -19,16 +25,19 @@
 #                        directly via `docker run ... chapkit
 #                        <subcommand>`.
 #
-# Pre-installed R packages (aligned with chap-core R-model needs):
-#   fmesher, INLA, dlnm, yaml, jsonlite, dplyr, readr,
-#   sf, spdep, sn, tsModel, xgboost, pak, renv
-# tidyverse is intentionally NOT installed (adds ~400 MB); install in a
-# downstream layer if you need it.
+# Pre-installed R packages (in addition to chapkit-r-tidyverse's
+# tidyverse + tidyverts + ML stack):
+#   fmesher, INLA, dlnm, sf, spdep, sn, tsModel, jsonlite
+#   (yaml, dplyr, readr, xgboost already covered by chapkit-r-tidyverse)
 #
 # Security: runs as root. Non-root hardening needs the volume-mapping
 # dance from chap-core/compose.yml and is a deferred follow-up.
 
 ARG BASE_PLATFORM=linux/amd64
+# Image to inherit runtime from. Default is the published ghcr
+# release; the Makefile overrides this to chapkit-r-tidyverse:dev when
+# building locally.
+ARG CHAPKIT_R_TIDYVERSE_IMAGE=ghcr.io/dhis2-chap/chapkit-r-tidyverse:latest
 
 #############################
 # Stage 1: build INLA + R packages
@@ -51,12 +60,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # fmesher first (dependency for modern INLA), then INLA itself with
 # dep=FALSE (avoid the huge Suggests chain), then the chap-core parity
 # R package set. Final inla.prune() drops INLA examples/documentation.
+#
+# tidyverse + tidyverts come from the chapkit-r-tidyverse base layer in
+# the runtime stage — no need to re-install them here.
 RUN R -q -e "install.packages('fmesher', \
         repos = c('https://cloud.r-project.org', INLA = 'https://inla.r-inla-download.org/R/stable'))" \
     && R -q -e "install.packages('INLA', \
         repos = c('https://cloud.r-project.org', INLA = 'https://inla.r-inla-download.org/R/stable'), \
         dep = FALSE)" \
-    && R -q -e "install.packages(c('dlnm','yaml','jsonlite','dplyr','readr','sf','spdep','sn','tsModel','xgboost','pak','renv'), \
+    && R -q -e "install.packages(c('dlnm','jsonlite','sf','spdep','sn','tsModel'), \
         repos='https://cloud.r-project.org')" \
     && R -q -e "library(INLA); INLA::inla.prune()"
 
@@ -68,43 +80,25 @@ RUN find /usr/local/lib/R/site-library -name "*.so" -exec strip --strip-debug {}
 #############################
 # Stage 2: runtime (no chapkit)
 #############################
-FROM --platform=${BASE_PLATFORM} debian:trixie-slim AS runtime
+FROM --platform=${BASE_PLATFORM} ${CHAPKIT_R_TIDYVERSE_IMAGE} AS runtime
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8 \
-    UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
-    UV_PYTHON_INSTALL_DIR=/opt/uv-python \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/app/.venv/bin:${PATH}"
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Full R toolchain (so users can install extra CRAN packages or run
-# renv::restore() at container runtime) + runtime shared libs for the
-# compiled R packages copied from the builder.
-#
-# r-base-dev + dev headers intentionally present here: avoiding them
-# would save ~150 MB but break install.packages()/renv::restore() for
-# anything not already in the pre-baked site-library, which defeats a
-# lot of the reason for a fat image.
+# Spatial / GSL / fontconfig dev libs that the INLA site-library links
+# against. Dev headers are kept (not just runtime libs) so users can
+# install.packages() additional spatial packages at runtime against
+# matching versions.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl jq git \
-        r-base r-base-dev gfortran \
-        # Dev headers for the same libs that INLA's package set depends
-        # on - lets users install downstream R packages against them.
-        libcurl4-openssl-dev libssl-dev libxml2-dev \
         libgdal-dev libgeos-dev libproj-dev libudunits2-dev \
         libgsl-dev libfontconfig1-dev \
-        # Build tools for Python ML wheels that fall through to source.
-        build-essential pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=inla-builder /usr/local/lib/R/site-library /usr/local/lib/R/site-library
-COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /uvx /usr/local/bin/
-
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv python install 3.13 \
-    && uv venv /app/.venv --python 3.13
+# Merge INLA site-library on top of the inherited tidyverse one.
+# `cp -rn` is no-clobber: chapkit-r-tidyverse's packages win on
+# overlap (e.g. dplyr, readr) so we don't accidentally downgrade.
+COPY --from=inla-builder /usr/local/lib/R/site-library /tmp/inla-site-library
+RUN cp -rn /tmp/inla-site-library/. /usr/local/lib/R/site-library/ \
+    && rm -rf /tmp/inla-site-library
 
 WORKDIR /work
 
