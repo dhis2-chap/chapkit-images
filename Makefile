@@ -61,29 +61,37 @@ build-py-cli: build-py
 		-f chapkit-py.Dockerfile -t chapkit-py-cli:dev .
 
 # ---------- chapkit-r ----------
+#
+# Local builds pin --platform=linux/amd64 across the entire R chain so
+# the FROM chapkit-r-tidyverse line in chapkit-r-inla.Dockerfile (which
+# itself pins amd64 because INLA is amd64-only) resolves cleanly. CI
+# uses buildx + push to make chapkit-r{,-cli} and
+# chapkit-r-tidyverse{,-cli} multi-arch on the registry; the chain
+# below just needs ONE arch locally and amd64 is the only one that
+# carries through to chapkit-r-inla.
 
 build-r:
-	@echo ">>> Building chapkit-r:dev (no chapkit)"
-	@docker build --target runtime \
+	@echo ">>> Building chapkit-r:dev (no chapkit, linux/amd64)"
+	@docker build --target runtime --platform=linux/amd64 \
 		-f chapkit-r.Dockerfile -t chapkit-r:dev .
 
 build-r-cli: build-r
-	@echo ">>> Building chapkit-r-cli:dev (chapkit==$(CHAPKIT_VERSION))"
-	@docker build --target bundled \
+	@echo ">>> Building chapkit-r-cli:dev (chapkit==$(CHAPKIT_VERSION), linux/amd64)"
+	@docker build --target bundled --platform=linux/amd64 \
 		--build-arg CHAPKIT_VERSION=$(CHAPKIT_VERSION) \
 		-f chapkit-r.Dockerfile -t chapkit-r-cli:dev .
 
 # ---------- chapkit-r-tidyverse ----------
 
 build-r-tidyverse: build-r
-	@echo ">>> Building chapkit-r-tidyverse:dev (no chapkit, FROM chapkit-r:dev)"
-	@docker build --target runtime \
+	@echo ">>> Building chapkit-r-tidyverse:dev (no chapkit, FROM chapkit-r:dev, linux/amd64)"
+	@docker build --target runtime --platform=linux/amd64 \
 		--build-arg CHAPKIT_R_IMAGE=chapkit-r:dev \
 		-f chapkit-r-tidyverse.Dockerfile -t chapkit-r-tidyverse:dev .
 
 build-r-tidyverse-cli: build-r-tidyverse
-	@echo ">>> Building chapkit-r-tidyverse-cli:dev (chapkit==$(CHAPKIT_VERSION))"
-	@docker build --target bundled \
+	@echo ">>> Building chapkit-r-tidyverse-cli:dev (chapkit==$(CHAPKIT_VERSION), linux/amd64)"
+	@docker build --target bundled --platform=linux/amd64 \
 		--build-arg CHAPKIT_R_IMAGE=chapkit-r:dev \
 		--build-arg CHAPKIT_VERSION=$(CHAPKIT_VERSION) \
 		-f chapkit-r-tidyverse.Dockerfile -t chapkit-r-tidyverse-cli:dev .
