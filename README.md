@@ -24,18 +24,30 @@ block every commit on `chapkit`.
 
 ## Images
 
-| Image                                          | Base                                               | Arches                       | ~Size (amd64) |
-| ---------------------------------------------- | -------------------------------------------------- | ---------------------------- | ------------- |
-| `ghcr.io/dhis2-chap/chapkit-py:latest`         | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~220 MB       |
-| `ghcr.io/dhis2-chap/chapkit-py-cli:latest`     | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~220 MB       |
-| `ghcr.io/dhis2-chap/chapkit-r:latest`          | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64` | ~400 MB       |
-| `ghcr.io/dhis2-chap/chapkit-r-cli:latest`      | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64` | ~400 MB       |
-| `ghcr.io/dhis2-chap/chapkit-r-inla:latest`     | `debian:trixie-slim` (two-stage)                   | `linux/amd64` (INLA x86_64)  | ~570 MB       |
-| `ghcr.io/dhis2-chap/chapkit-r-inla-cli:latest` | `debian:trixie-slim` (two-stage)                   | `linux/amd64` (INLA x86_64)  | ~570 MB       |
+| Image                                                | Base                                               | Arches                       | ~Size (amd64) |
+| ---------------------------------------------------- | -------------------------------------------------- | ---------------------------- | ------------- |
+| `ghcr.io/dhis2-chap/chapkit-py:latest`               | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~420 MB       |
+| `ghcr.io/dhis2-chap/chapkit-py-cli:latest`           | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~570 MB       |
+| `ghcr.io/dhis2-chap/chapkit-r:latest`                | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64` | ~385 MB       |
+| `ghcr.io/dhis2-chap/chapkit-r-cli:latest`            | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64` | ~415 MB       |
+| `ghcr.io/dhis2-chap/chapkit-r-tidyverse:latest`      | `chapkit-r:latest`                                 | `linux/amd64`, `linux/arm64` | ~1.77 GB      |
+| `ghcr.io/dhis2-chap/chapkit-r-tidyverse-cli:latest`  | `chapkit-r:latest`                                 | `linux/amd64`, `linux/arm64` | ~1.81 GB      |
+| `ghcr.io/dhis2-chap/chapkit-r-inla:latest`           | `chapkit-r-tidyverse:latest` (+ INLA build stage)  | `linux/amd64` (INLA x86_64)  | ~2.02 GB      |
+| `ghcr.io/dhis2-chap/chapkit-r-inla-cli:latest`       | `chapkit-r-tidyverse:latest` (+ INLA build stage)  | `linux/amd64` (INLA x86_64)  | ~2.05 GB      |
 
 The size delta between each base / `-cli` pair is just the chapkit wheel
-and its Python deps (~1–2 MB); the heavy bits (R, INLA, the Python
-toolchain) are identical.
+and its Python deps (~30–50 MB); the heavy bits (R, INLA, the Python
+toolchain, the tidyverse + ML stack) are identical.
+
+Hierarchy: `chapkit-r-tidyverse` FROMs `chapkit-r` and adds the
+tidyverse + tidyverts + forecasting + ML primitives bundle (tidyverse,
+fable, tsibble, feasts, lubridate, distributional, forecast, urca,
+tseries, zoo, xts, readxl, ranger, randomForest, xgboost, glmnet,
+e1071, lme4, janitor, here, patchwork). `chapkit-r-inla` FROMs
+`chapkit-r-tidyverse` and adds INLA + the spatial/EWARS R stack
+(fmesher, INLA, dlnm, sf, spdep, sn, tsModel, jsonlite). Models that
+don't need INLA should pull `chapkit-r-tidyverse` to skip the ~250 MB
+INLA layer.
 
 Tag conventions:
 
