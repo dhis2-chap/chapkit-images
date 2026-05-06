@@ -48,8 +48,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Pre-install renv + pak so users can restore lockfiles or install extras
-# without bootstrapping either from CRAN first.
-RUN R -q -e "install.packages(c('renv','pak'), repos='https://cloud.r-project.org')"
+# without bootstrapping either from CRAN first. yaml is included because
+# chapkit reads/writes YAML config and MLproject files at runtime, and
+# nearly every R MLproject ends up loading it.
+RUN R -q -e "install.packages(c('renv','pak','yaml'), repos='https://cloud.r-project.org')"
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /uvx /usr/local/bin/
 

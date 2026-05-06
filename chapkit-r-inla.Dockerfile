@@ -28,7 +28,7 @@
 # Pre-installed R packages (in addition to chapkit-r-tidyverse's
 # tidyverse + tidyverts + ML stack):
 #   fmesher, INLA, dlnm, sf, spdep, sn, tsModel, jsonlite
-#   (yaml, dplyr, readr, xgboost already covered by chapkit-r-tidyverse)
+#   (yaml comes from chapkit-r; dplyr, readr, xgboost from chapkit-r-tidyverse)
 #
 # Security: runs as root. Non-root hardening needs the volume-mapping
 # dance from chap-core/compose.yml and is a deferred follow-up.
