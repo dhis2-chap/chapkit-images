@@ -111,12 +111,12 @@ FROM runtime AS bundled
 
 # Install chapkit into /app/.venv. Two install paths:
 #   - default: PyPI release. Set CHAPKIT_VERSION to a PEP 440 version
-#     with or without a leading 'v' (e.g. 0.24.0 or v0.24.0).
+#     with or without a leading 'v' (e.g. 1.0.0 or v1.0.0).
 #   - override: git ref. Set CHAPKIT_GIT_REF to a branch / tag / SHA
 #     (e.g. main) to install from
 #     git+https://github.com/dhis2-chap/chapkit.git@<ref>. Used by the
 #     nightly :dev build to track chapkit's main branch.
-ARG CHAPKIT_VERSION=0.24.0
+ARG CHAPKIT_VERSION=1.0.0
 ARG CHAPKIT_GIT_REF=
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -n "${CHAPKIT_GIT_REF}" ]; then \
