@@ -98,7 +98,7 @@ jobs:
             target: bundled
             platforms: linux/amd64,linux/arm64
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up QEMU
         if: contains(matrix.platforms, 'arm64')
@@ -158,7 +158,7 @@ jobs:
           - image: chapkit-r-tidyverse-cli
             target: bundled
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -216,7 +216,7 @@ jobs:
           - image: chapkit-r-inla-cli
             target: bundled
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -307,7 +307,7 @@ jobs:
             platforms: linux/amd64
             extra_build_args: "CHAPKIT_R_TIDYVERSE_IMAGE=ghcr.io/dhis2-chap/chapkit-r-tidyverse:dev"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up QEMU
         if: contains(matrix.platforms, 'arm64')
