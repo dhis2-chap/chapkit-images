@@ -53,7 +53,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # nearly every R MLproject ends up loading it.
 RUN R -q -e "install.packages(c('renv','pak','yaml'), repos='https://cloud.r-project.org')"
 
-COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /uvx /usr/local/bin/
+# Keep this tag in step with the uv base image in chapkit-py.Dockerfile.
+# dependabot only tracks FROM lines, so it will never bump this one.
+COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /uvx /usr/local/bin/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv python install 3.13 \
