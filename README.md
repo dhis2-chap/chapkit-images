@@ -103,7 +103,14 @@ make build-r-cli                        # R with chapkit pre-installed
 make build-r-inla                       # base R + INLA, amd64
 make build-r-inla-cli                   # R + INLA with chapkit pre-installed
 make build-py-cli CHAPKIT_VERSION=1.1.0   # pin a specific PyPI version
+make build-r-inla INLA_VERSION=26.08.07   # build against a different INLA version
 ```
+
+`chapkit-r-inla` pins INLA via `ARG INLA_VERSION` in
+[`chapkit-r-inla.Dockerfile`](chapkit-r-inla.Dockerfile) rather than
+resolving to newest-in-channel, so a cache miss cannot silently change the
+published image. Bump that arg to move the pin; the `INLA_VERSION` make
+variable above is for trying a version out without editing the Dockerfile.
 
 ## Security posture
 

@@ -57,17 +57,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgsl-dev libfontconfig1-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# fmesher first (dependency for modern INLA), then INLA itself with
-# dep=FALSE (avoid the huge Suggests chain), then the chap-core parity
-# R package set. Final inla.prune() drops INLA examples/documentation.
+# INLA version to install from the stable channel. Pinned rather than
+# resolved to newest-in-channel: the install below is a cached layer, so
+# an unpinned `install.packages('INLA')` re-resolves only on a cache
+# miss, silently moving the published image to whatever upstream shipped
+# since. Bumping belongs in this single arg edit. See CLIM-934.
+ARG INLA_VERSION=25.10.19
+
+# fmesher first (dependency for modern INLA), then the pinned INLA
+# tarball (repos=NULL skips the huge Suggests chain, as dep=FALSE did),
+# then the chap-core parity R package set. Final inla.prune() drops INLA
+# examples/documentation.
 #
 # tidyverse + tidyverts come from the chapkit-r-tidyverse base layer in
 # the runtime stage — no need to re-install them here.
 RUN R -q -e "install.packages('fmesher', \
         repos = c('https://cloud.r-project.org', INLA = 'https://inla.r-inla-download.org/R/stable'))" \
-    && R -q -e "install.packages('INLA', \
-        repos = c('https://cloud.r-project.org', INLA = 'https://inla.r-inla-download.org/R/stable'), \
-        dep = FALSE)" \
+    && R -q -e "install.packages( \
+        'https://inla.r-inla-download.org/R/stable/src/contrib/INLA_${INLA_VERSION}.tar.gz', \
+        repos = NULL, type = 'source')" \
     && R -q -e "install.packages(c('dlnm','jsonlite','sf','spdep','sn','tsModel'), \
         repos='https://cloud.r-project.org')" \
     && R -q -e "library(INLA); INLA::inla.prune()"
