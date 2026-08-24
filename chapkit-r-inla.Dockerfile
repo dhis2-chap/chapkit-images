@@ -66,8 +66,10 @@ ARG INLA_VERSION=25.10.19
 
 # fmesher first (dependency for modern INLA), then the pinned INLA
 # tarball (repos=NULL skips the huge Suggests chain, as dep=FALSE did),
-# then the chap-core parity R package set. Final inla.prune() drops INLA
-# examples/documentation.
+# then the chap-core parity R package set. Final inla.prune(ask = FALSE)
+# drops the INLA binaries for other platforms (mac, windows, remote and
+# linux/32bit); ask=FALSE is required because the default ask=TRUE reads
+# an empty line under non-interactive R and then deletes nothing.
 #
 # tidyverse + tidyverts come from the chapkit-r-tidyverse base layer in
 # the runtime stage — no need to re-install them here.
@@ -78,7 +80,7 @@ RUN R -q -e "install.packages('fmesher', \
         repos = NULL, type = 'source')" \
     && R -q -e "install.packages(c('dlnm','jsonlite','sf','spdep','sn','tsModel'), \
         repos='https://cloud.r-project.org')" \
-    && R -q -e "library(INLA); INLA::inla.prune()"
+    && R -q -e "library(INLA); INLA::inla.prune(ask = FALSE)"
 
 # Strip debug symbols + drop help/docs to shrink the site-library.
 RUN find /usr/local/lib/R/site-library -name "*.so" -exec strip --strip-debug {} \; 2>/dev/null || true \
