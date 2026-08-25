@@ -11,6 +11,14 @@
 # Only used by the -cli targets; the base targets do not install chapkit.
 CHAPKIT_VERSION ?= 1.1.0
 
+# INLA version for the chapkit-r-inla targets. Left empty so the
+# Dockerfile's ARG INLA_VERSION stays the single source of truth for the
+# default; set this only to build against a different version, e.g. to
+# validate a bump:
+#   make build-r-inla INLA_VERSION=26.08.07
+INLA_VERSION ?=
+INLA_VERSION_ARG = $(if $(INLA_VERSION),--build-arg INLA_VERSION=$(INLA_VERSION),)
+
 help:
 	@echo "chapkit-images"
 	@echo ""
@@ -32,6 +40,8 @@ help:
 	@echo "Variables:"
 	@echo "  CHAPKIT_VERSION  chapkit PyPI version for -cli targets. Set with:"
 	@echo "                     make build-py-cli CHAPKIT_VERSION=1.1.0"
+	@echo "  INLA_VERSION     override the INLA version pinned in the Dockerfile:"
+	@echo "                     make build-r-inla INLA_VERSION=26.08.07"
 	@echo ""
 	@echo "Image hierarchy (each layer FROM the previous):"
 	@echo "  chapkit-py        Python + uv"
@@ -102,6 +112,7 @@ build-r-inla: build-r-tidyverse
 	@echo ">>> Building chapkit-r-inla:dev (no chapkit, FROM chapkit-r-tidyverse:dev)"
 	@docker build --target runtime --platform=linux/amd64 \
 		--build-arg CHAPKIT_R_TIDYVERSE_IMAGE=chapkit-r-tidyverse:dev \
+		$(INLA_VERSION_ARG) \
 		-f chapkit-r-inla.Dockerfile -t chapkit-r-inla:dev .
 
 build-r-inla-cli: build-r-inla
@@ -109,6 +120,7 @@ build-r-inla-cli: build-r-inla
 	@docker build --target bundled --platform=linux/amd64 \
 		--build-arg CHAPKIT_R_TIDYVERSE_IMAGE=chapkit-r-tidyverse:dev \
 		--build-arg CHAPKIT_VERSION=$(CHAPKIT_VERSION) \
+		$(INLA_VERSION_ARG) \
 		-f chapkit-r-inla.Dockerfile -t chapkit-r-inla-cli:dev .
 
 # ---------- clean ----------
