@@ -30,8 +30,8 @@
 #   fmesher, INLA, dlnm, sf, spdep, sn, tsModel, jsonlite
 #   (yaml comes from chapkit-r; dplyr, readr, xgboost from chapkit-r-tidyverse)
 #
-# Security: runs as root. Non-root hardening needs the volume-mapping
-# dance from chap-core/compose.yml and is a deferred follow-up.
+# Security: runs as root by default; the unprivileged `chapkit` user
+# (uid/gid 1000) is inherited from chapkit-r for downstream services.
 
 ARG BASE_PLATFORM=linux/amd64
 # Image to inherit runtime from. Default is the published ghcr

@@ -10,6 +10,9 @@
 #                    needing a pyproject.toml or `uv sync` step.
 #
 # Multi-arch (linux/amd64, linux/arm64).
+#
+# Security: runs as root by default and ships an unprivileged `chapkit`
+# user (uid/gid 1000) for downstream services to switch to.
 
 # ---------- Stage: runtime (no chapkit) ----------
 FROM ghcr.io/astral-sh/uv:0.12-python3.13-trixie-slim AS runtime
@@ -24,6 +27,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt update && apt install -y --no-install-recommends \
         curl jq ca-certificates git \
     && apt clean && rm -rf /var/lib/apt/lists/*
+
+# Unprivileged runtime user for downstream services. Scaffolded chapkit
+# services switch to it with `USER chapkit` right before their CMD; the
+# image itself stays root so `FROM`-based builds and the direct
+# `chapkit run .` flow keep working unchanged. Fixed uid/gid 1000 so
+# named-volume ownership is predictable across the image family.
+RUN groupadd --gid 1000 chapkit \
+    && useradd --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin chapkit
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv /app/.venv

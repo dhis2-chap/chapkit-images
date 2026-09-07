@@ -16,9 +16,11 @@
 # the spatial/tsModel/dlnm R stack that chap-core EWARS-style models
 # use), pull chapkit-r-inla instead.
 #
-# Security: runs as root. Non-root hardening needs the volume-mapping
-# dance from chap-core/compose.yml (tmpfs /tmp, per-user cache volumes)
-# and is a deferred follow-up.
+# Security: runs as root by default and ships an unprivileged `chapkit`
+# user (uid/gid 1000) that chapkit-r-tidyverse and chapkit-r-inla
+# inherit. Scaffolded services switch to it with `USER chapkit`; the
+# writable-path mapping (tmpfs /tmp, data volume) lives in their
+# compose.yml.
 
 # ---------- Stage: runtime (no chapkit) ----------
 FROM debian:trixie-slim AS runtime
@@ -46,6 +48,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         # Build tools for Python ML wheels that fall through to source.
         build-essential pkg-config \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Unprivileged runtime user for downstream services. Scaffolded chapkit
+# services switch to it with `USER chapkit` right before their CMD; the
+# image itself stays root so `FROM`-based builds and the direct
+# `chapkit run .` flow keep working unchanged. Fixed uid/gid 1000 so
+# named-volume ownership is predictable across the image family.
+RUN groupadd --gid 1000 chapkit \
+    && useradd --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin chapkit
 
 # Pre-install renv + pak so users can restore lockfiles or install extras
 # without bootstrapping either from CRAN first. yaml is included because
