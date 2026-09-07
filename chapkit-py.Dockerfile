@@ -25,6 +25,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         curl jq ca-certificates git \
     && apt clean && rm -rf /var/lib/apt/lists/*
 
+# Unprivileged user (uid/gid 1000) for downstream services; the image itself stays root.
+RUN groupadd --gid 1000 chapkit \
+    && useradd --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin chapkit
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv /app/.venv
 

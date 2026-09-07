@@ -82,7 +82,7 @@ After all three builds succeed, a `smoke` job pulls each `:main` image and runs 
 - `chapkit` is installed from PyPI via `uv pip install chapkit==${CHAPKIT_VERSION}` into `/app/.venv`.
 - R images install `renv` and `pak` so downstream projects can `renv::restore()` without bootstrapping from CRAN.
 - `chapkit-r-inla` uses a two-stage build: an `inla-builder` stage compiles INLA + the spatial/time-series R package set, then the runtime stage copies `/usr/local/lib/R/site-library`.
-- Images run as `root`. Non-root hardening is a deferred follow-up.
+- Images run as `root` by default and ship an unprivileged `chapkit` user (uid/gid 1000) created in `chapkit-py` and `chapkit-r`; the other R images inherit it. Scaffolded services switch to it with `USER chapkit`.
 
 ## Git workflow
 

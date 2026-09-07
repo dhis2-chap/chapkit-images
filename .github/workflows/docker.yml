@@ -375,6 +375,12 @@ jobs:
       - name: Smoke chapkit-r-inla
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-inla:main uv --version
 
+      - name: Smoke chapkit user (uid/gid 1000)
+        run: |
+          for image in chapkit-py chapkit-r chapkit-r-inla; do
+            docker run --rm --user chapkit "ghcr.io/dhis2-chap/${image}:main" sh -c 'test "$(id -u)" = 1000 && test "$(id -g)" = 1000 && uv --version'
+          done
+
       # -cli images: chapkit is pre-installed, so `chapkit --help` works.
       - name: Smoke chapkit-py-cli
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-cli:main chapkit --help

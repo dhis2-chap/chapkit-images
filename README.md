@@ -114,8 +114,8 @@ variable above is for trying a version out without editing the Dockerfile.
 
 ## Security posture
 
-All images currently run as `root`. Non-root hardening needs the
-volume-mapping dance used by
-[`chap-core/compose.yml`](https://github.com/dhis2-chap/chap-core/blob/main/compose.yml)
-(tmpfs `/tmp`, per-user cache volumes) and is a planned follow-up. Intended
-to sit in a trusted compose network behind chap-core.
+Images run as `root` by default and ship an unprivileged `chapkit` user
+(uid/gid 1000). Services scaffolded by chapkit switch to it with `USER chapkit`
+and apply the same compose hardening as
+[`chap-core/compose.yml`](https://github.com/dhis2-chap/chap-core/blob/main/compose.yml).
+Intended to sit in a trusted compose network behind chap-core.
