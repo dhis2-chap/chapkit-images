@@ -107,7 +107,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # overlap (e.g. dplyr, readr) so we don't accidentally downgrade.
 COPY --from=inla-builder /usr/local/lib/R/site-library /tmp/inla-site-library
 RUN cp -rn /tmp/inla-site-library/. /usr/local/lib/R/site-library/ \
-    && rm -rf /tmp/inla-site-library
+    && rm -rf /tmp/inla-site-library \
+    # INLA ships its binaries root-executable only; the chapkit user must be able to run them.
+    && chmod -R a+rX /usr/local/lib/R/site-library
 
 WORKDIR /work
 
