@@ -30,8 +30,7 @@
 #   fmesher, INLA, dlnm, sf, spdep, sn, tsModel, jsonlite
 #   (yaml comes from chapkit-r; dplyr, readr, xgboost from chapkit-r-tidyverse)
 #
-# Security: runs as root by default; the unprivileged `chapkit` user
-# (uid/gid 1000) is inherited from chapkit-r for downstream services.
+# Runs as root; the `chapkit` user (uid/gid 1000) is inherited from chapkit-r.
 
 ARG BASE_PLATFORM=linux/amd64
 # Image to inherit runtime from. Default is the published ghcr

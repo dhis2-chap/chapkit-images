@@ -114,13 +114,8 @@ variable above is for trying a version out without editing the Dockerfile.
 
 ## Security posture
 
-All images run as `root` by default so `FROM`-based builds and the direct
-`chapkit run .` flow work without ceremony. Every image also ships an
-unprivileged `chapkit` user (uid/gid 1000, no home directory, `nologin`
-shell). Services scaffolded by `chapkit init` and `chapkit mlproject migrate`
-switch to it with `USER chapkit` right before their `CMD`, and their
-`compose.yml` mirrors the posture of
-[`chap-core/compose.yml`](https://github.com/dhis2-chap/chap-core/blob/main/compose.yml):
-read-only root filesystem, dropped capabilities, `no-new-privileges`, a tmpfs
-on `/tmp` for ML workspaces and a named volume for `/work/data`. Intended to
-sit in a trusted compose network behind chap-core.
+Images run as `root` by default and ship an unprivileged `chapkit` user
+(uid/gid 1000). Services scaffolded by chapkit switch to it with `USER chapkit`
+and apply the same compose hardening as
+[`chap-core/compose.yml`](https://github.com/dhis2-chap/chap-core/blob/main/compose.yml).
+Intended to sit in a trusted compose network behind chap-core.

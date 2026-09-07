@@ -16,11 +16,7 @@
 # the spatial/tsModel/dlnm R stack that chap-core EWARS-style models
 # use), pull chapkit-r-inla instead.
 #
-# Security: runs as root by default and ships an unprivileged `chapkit`
-# user (uid/gid 1000) that chapkit-r-tidyverse and chapkit-r-inla
-# inherit. Scaffolded services switch to it with `USER chapkit`; the
-# writable-path mapping (tmpfs /tmp, data volume) lives in their
-# compose.yml.
+# Runs as root; ships a `chapkit` user (uid/gid 1000) that the other R images inherit.
 
 # ---------- Stage: runtime (no chapkit) ----------
 FROM debian:trixie-slim AS runtime
@@ -49,11 +45,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         build-essential pkg-config \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Unprivileged runtime user for downstream services. Scaffolded chapkit
-# services switch to it with `USER chapkit` right before their CMD; the
-# image itself stays root so `FROM`-based builds and the direct
-# `chapkit run .` flow keep working unchanged. Fixed uid/gid 1000 so
-# named-volume ownership is predictable across the image family.
+# Unprivileged user (uid/gid 1000) for downstream services; the image itself stays root.
 RUN groupadd --gid 1000 chapkit \
     && useradd --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin chapkit
 
