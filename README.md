@@ -117,5 +117,5 @@ variable above is for trying a version out without editing the Dockerfile.
 Images run as `root` by default and ship an unprivileged `chapkit` user
 (uid/gid 1000). Services scaffolded by chapkit switch to it with `USER chapkit`
 and apply the same compose hardening as
-[`chap-core/compose.yml`](https://github.com/dhis2-chap/chap-core/blob/main/compose.yml).
+[`chap-core/compose.yml`](https://github.com/dhis2-chap/chap-core/blob/master/compose.yml).
 Intended to sit in a trusted compose network behind chap-core.
