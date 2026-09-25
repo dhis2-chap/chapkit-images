@@ -104,7 +104,8 @@ RUN R -q -e "pak::pkg_install(c( \
 # alone are ~50 MB of HTML).
 RUN find /usr/local/lib/R/site-library /usr/lib/R/site-library -type d \
         \( -name help -o -name doc -o -name html \) \
-        -exec rm -rf {} + 2>/dev/null || true
+        -exec rm -rf {} + 2>/dev/null || true \
+    && chmod -R a+rX /usr/local/lib/R/site-library
 
 # ---------- Stage: bundled (runtime + pinned chapkit) ----------
 FROM runtime AS bundled
