@@ -77,7 +77,7 @@ FROM runtime AS bundled
 #     (e.g. main) to install from
 #     git+https://github.com/dhis2-chap/chapkit.git@<ref>. Used by the
 #     nightly :dev build to track chapkit's main branch.
-ARG CHAPKIT_VERSION=1.1.0
+ARG CHAPKIT_VERSION=2.1.2
 ARG CHAPKIT_GIT_REF=
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -n "${CHAPKIT_GIT_REF}" ]; then \
