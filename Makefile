@@ -6,10 +6,10 @@
         clean
 
 # chapkit version to install from PyPI. Override on the CLI:
-#   make build-py-cli CHAPKIT_VERSION=2.1.2
+#   make build-py-cli CHAPKIT_VERSION=2.3.0
 # Accepts the bare PEP 440 version with or without a leading 'v'.
 # Only used by the -cli targets; the base targets do not install chapkit.
-CHAPKIT_VERSION ?= 2.1.2
+CHAPKIT_VERSION ?= 2.3.0
 
 # INLA version for the chapkit-r-inla targets. Left empty so the
 # Dockerfile's ARG INLA_VERSION stays the single source of truth for the
@@ -39,7 +39,7 @@ help:
 	@echo ""
 	@echo "Variables:"
 	@echo "  CHAPKIT_VERSION  chapkit PyPI version for -cli targets. Set with:"
-	@echo "                     make build-py-cli CHAPKIT_VERSION=2.1.2"
+	@echo "                     make build-py-cli CHAPKIT_VERSION=2.3.0"
 	@echo "  INLA_VERSION     override the INLA version pinned in the Dockerfile:"
 	@echo "                     make build-r-inla INLA_VERSION=26.08.07"
 	@echo ""
