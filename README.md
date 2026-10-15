@@ -72,21 +72,25 @@ published by this repo.
 
 ## CI / publishing
 
-`.github/workflows/docker.yml` builds and publishes all six images (base
-+ `-cli`, for each of py / r / r-inla) to `ghcr.io/dhis2-chap/...` from
-a single matrix job. Triggers:
+`.github/workflows/docker.yml` builds and publishes all eight images (base
++ `-cli`, for each of py / r / r-tidyverse / r-inla) to
+`ghcr.io/dhis2-chap/...` in three phases that follow the `FROM` chain:
+chapkit-py and chapkit-r in parallel, then chapkit-r-tidyverse, then
+chapkit-r-inla. Each job builds the base image and then its `-cli` image
+with the same builder, so the `-cli` build reuses every base layer and only
+adds the chapkit install. Triggers:
 
 - push to `main` — refresh `:latest`
 - tag `v*` — publish semver tag
-- `schedule` (weekly, Mon 04:17 UTC) — base-image security refresh
+- `schedule` (nightly, 04:17 UTC) — base-image security refresh
 - `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `2.4.0`; only affects `-cli` images)
 - `repository_dispatch` (`event_type: chapkit-release`) — fired by chapkit's release workflow (rebuilds `-cli` images against the released version)
 
-After all six builds succeed, a `smoke` job pulls each `:main` image and
+After all eight builds succeed, a `smoke` job pulls each `:main` image and
 runs `chapkit --help` against the `-cli` tags (plus `library(INLA)` for
 `chapkit-r-inla-cli`) and `uv --version` against the base tags, to catch
 broken publishes. On scheduled / `workflow_dispatch` runs, a parallel
-`build-dev` job rebuilds the three `-cli` images against `chapkit` main
+`build-dev` job rebuilds the four `-cli` images against `chapkit` main
 and tags them `:dev`; a corresponding `smoke-dev` job exercises those.
 
 Build cache is pushed to a `:buildcache` tag alongside each image so PR and
