@@ -22,6 +22,11 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    # A change to only docs cannot change an image, and a full build takes
+    # hours. The nightly schedule still refreshes every image.
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
   pull_request:
     branches: [main]
     paths:
