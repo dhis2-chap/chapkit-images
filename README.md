@@ -28,6 +28,8 @@ block every commit on `chapkit`.
 | ---------------------------------------------------- | -------------------------------------------------- | ---------------------------- | ------------- |
 | `ghcr.io/dhis2-chap/chapkit-py:latest`               | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~420 MB       |
 | `ghcr.io/dhis2-chap/chapkit-py-cli:latest`           | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~570 MB       |
+| `ghcr.io/dhis2-chap/chapkit-py-data:latest`          | `chapkit-py:latest`                                | `linux/amd64`, `linux/arm64` | ~1.0 GB       |
+| `ghcr.io/dhis2-chap/chapkit-py-data-cli:latest`      | `chapkit-py:latest`                                | `linux/amd64`, `linux/arm64` | ~1.2 GB       |
 | `ghcr.io/dhis2-chap/chapkit-r:latest`                | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64` | ~385 MB       |
 | `ghcr.io/dhis2-chap/chapkit-r-cli:latest`            | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64` | ~415 MB       |
 | `ghcr.io/dhis2-chap/chapkit-r-tidyverse:latest`      | `chapkit-r:latest`                                 | `linux/amd64`, `linux/arm64` | ~1.77 GB      |
@@ -39,7 +41,13 @@ The size delta between each base / `-cli` pair is just the chapkit wheel
 and its Python deps (~30–50 MB); the heavy bits (R, INLA, the Python
 toolchain, the tidyverse + ML stack) are identical.
 
-Hierarchy: `chapkit-r-tidyverse` FROMs `chapkit-r` and adds the
+Hierarchy: `chapkit-py-data` FROMs `chapkit-py` and adds the PyData
+stack that most Python chap-models use (numpy, pandas, scipy,
+scikit-learn, statsmodels, joblib, pyyaml, xarray); model-specific
+frameworks such as torch or pymc stay out. A chapkit service that runs
+`uv sync` replaces these with its own locked versions, so the stack
+mainly pays off for `chapkit-py-data-cli`, which serves an MLproject
+with no image of its own. `chapkit-r-tidyverse` FROMs `chapkit-r` and adds the
 tidyverse + tidyverts + forecasting + ML primitives bundle (tidyverse,
 fable, tsibble, feasts, lubridate, distributional, forecast, urca,
 tseries, zoo, xts, readxl, ranger, randomForest, xgboost, glmnet,
@@ -72,11 +80,11 @@ published by this repo.
 
 ## CI / publishing
 
-`.github/workflows/docker.yml` builds and publishes all eight images (base
-+ `-cli`, for each of py / r / r-tidyverse / r-inla) to
+`.github/workflows/docker.yml` builds and publishes all ten images (base
++ `-cli`, for each of py / py-data / r / r-tidyverse / r-inla) to
 `ghcr.io/dhis2-chap/...` in three phases that follow the `FROM` chain:
-chapkit-py and chapkit-r in parallel, then chapkit-r-tidyverse, then
-chapkit-r-inla. Each job builds the base image and then its `-cli` image
+chapkit-py and chapkit-r in parallel, then chapkit-py-data and
+chapkit-r-tidyverse in parallel, then chapkit-r-inla. Each job builds the base image and then its `-cli` image
 with the same builder, so the `-cli` build reuses every base layer and only
 adds the chapkit install. Triggers:
 
@@ -86,11 +94,11 @@ adds the chapkit install. Triggers:
 - `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `2.4.0`; only affects `-cli` images)
 - `repository_dispatch` (`event_type: chapkit-release`) — fired by chapkit's release workflow (rebuilds `-cli` images against the released version)
 
-After all eight builds succeed, a `smoke` job pulls each `:main` image and
+After all ten builds succeed, a `smoke` job pulls each `:main` image and
 runs `chapkit --help` against the `-cli` tags (plus `library(INLA)` for
 `chapkit-r-inla-cli`) and `uv --version` against the base tags, to catch
 broken publishes. On scheduled / `workflow_dispatch` runs, a parallel
-`build-dev` job rebuilds the four `-cli` images against `chapkit` main
+`build-dev` job rebuilds the five `-cli` images against `chapkit` main
 and tags them `:dev`; a corresponding `smoke-dev` job exercises those.
 
 Build cache is pushed to a `:buildcache` tag alongside each image so PR and

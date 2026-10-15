@@ -1,5 +1,6 @@
 .PHONY: help build \
         build-py build-py-cli \
+        build-py-data build-py-data-cli \
         build-r build-r-cli \
         build-r-tidyverse build-r-tidyverse-cli \
         build-r-inla build-r-inla-cli \
@@ -25,12 +26,14 @@ help:
 	@echo "Targets (base = no chapkit; FROM base for scaffolded services):"
 	@echo "  build                    Build all base and -cli images (in dependency order)"
 	@echo "  build-py                 Build chapkit-py:dev (Python + uv only)"
+	@echo "  build-py-data            Build chapkit-py-data:dev (chapkit-py + numpy, pandas, scikit-learn, ...)"
 	@echo "  build-r                  Build chapkit-r:dev (R + uv only)"
 	@echo "  build-r-tidyverse        Build chapkit-r-tidyverse:dev (chapkit-r + tidyverse + tidyverts)"
 	@echo "  build-r-inla             Build chapkit-r-inla:dev (chapkit-r-tidyverse + INLA + spatial)"
 	@echo ""
 	@echo "Targets (-cli = pinned chapkit pre-installed; for direct docker run):"
 	@echo "  build-py-cli             Build chapkit-py-cli:dev"
+	@echo "  build-py-data-cli        Build chapkit-py-data-cli:dev"
 	@echo "  build-r-cli              Build chapkit-r-cli:dev"
 	@echo "  build-r-tidyverse-cli    Build chapkit-r-tidyverse-cli:dev"
 	@echo "  build-r-inla-cli         Build chapkit-r-inla-cli:dev"
@@ -45,14 +48,17 @@ help:
 	@echo ""
 	@echo "Image hierarchy (each layer FROM the previous):"
 	@echo "  chapkit-py        Python + uv"
+	@echo "  chapkit-py-data   chapkit-py + numpy, pandas, scipy, scikit-learn, statsmodels, joblib, pyyaml, xarray"
 	@echo "  chapkit-r         R + Python + uv + renv/pak"
 	@echo "  chapkit-r-tidyverse  chapkit-r + tidyverse, fable, tsibble, lubridate, feasts"
 	@echo "  chapkit-r-inla    chapkit-r-tidyverse + INLA + sf/spdep/sn/dlnm/tsModel/xgboost"
 
-# Build order matters: chapkit-r-tidyverse FROMs chapkit-r:dev,
+# Build order matters: chapkit-py-data FROMs chapkit-py:dev,
+# chapkit-r-tidyverse FROMs chapkit-r:dev,
 # chapkit-r-inla FROMs chapkit-r-tidyverse:dev. The Make dependency
 # chain enforces the order so a fresh `make build` works from clean.
 build: build-py build-py-cli \
+       build-py-data build-py-data-cli \
        build-r build-r-cli \
        build-r-tidyverse build-r-tidyverse-cli \
        build-r-inla build-r-inla-cli
@@ -69,6 +75,21 @@ build-py-cli: build-py
 	@docker build --target bundled \
 		--build-arg CHAPKIT_VERSION=$(CHAPKIT_VERSION) \
 		-f chapkit-py.Dockerfile -t chapkit-py-cli:dev .
+
+# ---------- chapkit-py-data ----------
+
+build-py-data: build-py
+	@echo ">>> Building chapkit-py-data:dev (no chapkit, FROM chapkit-py:dev)"
+	@docker build --target runtime \
+		--build-arg CHAPKIT_PY_IMAGE=chapkit-py:dev \
+		-f chapkit-py-data.Dockerfile -t chapkit-py-data:dev .
+
+build-py-data-cli: build-py-data
+	@echo ">>> Building chapkit-py-data-cli:dev (chapkit==$(CHAPKIT_VERSION))"
+	@docker build --target bundled \
+		--build-arg CHAPKIT_PY_IMAGE=chapkit-py:dev \
+		--build-arg CHAPKIT_VERSION=$(CHAPKIT_VERSION) \
+		-f chapkit-py-data.Dockerfile -t chapkit-py-data-cli:dev .
 
 # ---------- chapkit-r ----------
 #
@@ -128,6 +149,7 @@ build-r-inla-cli: build-r-inla
 clean:
 	@docker rmi -f \
 		chapkit-py:dev chapkit-py-cli:dev \
+		chapkit-py-data:dev chapkit-py-data-cli:dev \
 		chapkit-r:dev chapkit-r-cli:dev \
 		chapkit-r-tidyverse:dev chapkit-r-tidyverse-cli:dev \
 		chapkit-r-inla:dev chapkit-r-inla-cli:dev \

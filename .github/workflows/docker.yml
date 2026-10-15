@@ -26,6 +26,7 @@ on:
     branches: [main]
     paths:
       - 'chapkit-py.Dockerfile'
+      - 'chapkit-py-data.Dockerfile'
       - 'chapkit-r.Dockerfile'
       - 'chapkit-r-tidyverse.Dockerfile'
       - 'chapkit-r-inla.Dockerfile'
@@ -248,6 +249,90 @@ jobs:
             type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-tidyverse-cli:buildcache
           cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-tidyverse-cli:buildcache,mode=max,image-manifest=true
 
+  # Phase 2: chapkit-py-data FROM chapkit-py:sha-*, then its -cli image.
+  # Multi-arch. Runs in parallel with chapkit-py-data.
+  build-py-data:
+    name: chapkit-py-data
+    runs-on: ubuntu-latest
+    needs: [resolve-from-tag, build-leaf]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (chapkit-py-data)
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/dhis2-chap/chapkit-py-data
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract metadata (chapkit-py-data-cli)
+        id: meta-cli
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/dhis2-chap/chapkit-py-data-cli
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push chapkit-py-data
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: chapkit-py-data.Dockerfile
+          target: runtime
+          # Push on PRs too: downstream phases FROM the just-pushed sha-* tag.
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            CHAPKIT_PY_IMAGE=ghcr.io/dhis2-chap/chapkit-py:${{ needs.resolve-from-tag.outputs.from_tag }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-py-data:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-py-data:buildcache,mode=max,image-manifest=true
+
+      # Same builder as the step above, so every runtime layer is a local
+      # cache hit and only the chapkit install is new.
+      - name: Build and push chapkit-py-data-cli
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: chapkit-py-data.Dockerfile
+          target: bundled
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            CHAPKIT_PY_IMAGE=ghcr.io/dhis2-chap/chapkit-py:${{ needs.resolve-from-tag.outputs.from_tag }}
+            CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
+          tags: ${{ steps.meta-cli.outputs.tags }}
+          labels: ${{ steps.meta-cli.outputs.labels }}
+          cache-from: |
+            type=registry,ref=ghcr.io/dhis2-chap/chapkit-py-data:buildcache
+            type=registry,ref=ghcr.io/dhis2-chap/chapkit-py-data-cli:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-py-data-cli:buildcache,mode=max,image-manifest=true
+
   # Phase 3: chapkit-r-inla FROM chapkit-r-tidyverse:sha-*, then its -cli
   # image. amd64 only.
   build-r-inla:
@@ -333,11 +418,12 @@ jobs:
   build:
     name: build
     runs-on: ubuntu-latest
-    needs: [build-leaf, build-r-tidyverse, build-r-inla]
+    needs: [build-leaf, build-py-data, build-r-tidyverse, build-r-inla]
     if: always()
     steps:
       - run: |
           if [ "${{ needs.build-leaf.result }}" != "success" ] || \
+             [ "${{ needs.build-py-data.result }}" != "success" ] || \
              [ "${{ needs.build-r-tidyverse.result }}" != "success" ] || \
              [ "${{ needs.build-r-inla.result }}" != "success" ]; then
             echo "One or more build phases failed"
@@ -370,6 +456,11 @@ jobs:
             base_image: chapkit-py
             platforms: linux/amd64,linux/arm64
             extra_build_args: ""
+          - dockerfile: chapkit-py-data.Dockerfile
+            image: chapkit-py-data-cli
+            base_image: chapkit-py-data
+            platforms: linux/amd64,linux/arm64
+            extra_build_args: "CHAPKIT_PY_IMAGE=ghcr.io/dhis2-chap/chapkit-py:latest"
           - dockerfile: chapkit-r.Dockerfile
             image: chapkit-r-cli
             base_image: chapkit-r
@@ -441,6 +532,9 @@ jobs:
       - name: Smoke chapkit-py
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-py:main uv --version
 
+      - name: Smoke chapkit-py-data (the stack imports)
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-data:main python -c "import numpy, pandas, scipy, sklearn, statsmodels.api, joblib, yaml, xarray; print('OK')"
+
       - name: Smoke chapkit-r
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-r:main uv --version
 
@@ -455,7 +549,7 @@ jobs:
 
       - name: Smoke chapkit user (uid/gid 1000)
         run: |
-          for image in chapkit-py chapkit-r chapkit-r-inla; do
+          for image in chapkit-py chapkit-py-data chapkit-r chapkit-r-inla; do
             docker run --rm --user chapkit "ghcr.io/dhis2-chap/${image}:main" sh -c 'test "$(id -u)" = 1000 && test "$(id -g)" = 1000 && uv --version'
           done
 
@@ -466,6 +560,9 @@ jobs:
       # -cli images: chapkit is pre-installed, so `chapkit --help` works.
       - name: Smoke chapkit-py-cli
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-cli:main chapkit --help
+
+      - name: Smoke chapkit-py-data-cli
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-data-cli:main chapkit --help
 
       - name: Smoke chapkit-r-cli
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-cli:main chapkit --help
@@ -496,6 +593,9 @@ jobs:
 
       - name: Smoke chapkit-py-cli :dev
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-cli:dev chapkit --help
+
+      - name: Smoke chapkit-py-data-cli :dev
+        run: docker run --rm ghcr.io/dhis2-chap/chapkit-py-data-cli:dev chapkit --help
 
       - name: Smoke chapkit-r-cli :dev
         run: docker run --rm ghcr.io/dhis2-chap/chapkit-r-cli:dev chapkit --help
