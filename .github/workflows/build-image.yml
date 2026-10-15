@@ -1,0 +1,224 @@
+name: Build image
+
+# Reusable workflow: builds one image and its -cli variant, each architecture on
+# a native runner, then merges the per-architecture images into one multi-arch
+# manifest under the usual tags.
+#
+# arm64 builds on ubuntu-24.04-arm instead of under QEMU on an amd64 runner.
+# Emulated arm64 compiled R packages from source at a fraction of native speed,
+# which made chapkit-r-tidyverse take close to three hours.
+#
+# Each architecture pushes by digest (no tag) and uploads that digest as an
+# artifact; the merge job tags the combined manifest. Build cache is kept per
+# architecture (:buildcache-amd64, :buildcache-arm64), since two native jobs
+# writing one :buildcache would overwrite each other. The old multi-arch
+# :buildcache is still read, so the first run after this change is not cold.
+on:
+  workflow_call:
+    inputs:
+      dockerfile:
+        description: Dockerfile to build
+        required: true
+        type: string
+      image:
+        description: Image name under ghcr.io/dhis2-chap; the -cli variant is <image>-cli
+        required: true
+        type: string
+      multi_arch:
+        description: Build linux/arm64 as well as linux/amd64
+        required: false
+        type: boolean
+        default: true
+      build_args:
+        description: Extra build args for both targets, one NAME=value per line
+        required: false
+        type: string
+        default: ''
+      chapkit_version:
+        description: chapkit PyPI version installed in the -cli image
+        required: false
+        type: string
+        default: ''
+      dev:
+        description: Build only the -cli image, from chapkit's main branch, tagged :dev
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY_IMAGE: ghcr.io/dhis2-chap/${{ inputs.image }}
+  # Artifact names must be unique within a run, and the nightly run builds the
+  # same -cli images twice (release and :dev). The "__" before the architecture
+  # keeps the merge job's pattern for chapkit-r from also matching
+  # chapkit-r-tidyverse (image names never contain "__").
+  ARTIFACT_PREFIX: digests-${{ inputs.dev && 'dev-' || '' }}${{ inputs.image }}
+
+jobs:
+  build:
+    name: ${{ matrix.arch }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(inputs.multi_arch && '["amd64","arm64"]' || '["amd64"]') }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (${{ inputs.image }})
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+
+      - name: Extract metadata (${{ inputs.image }}-cli)
+        id: meta-cli
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}-cli
+
+      - name: Build and push ${{ inputs.image }} (${{ matrix.arch }})
+        id: build
+        if: ${{ !inputs.dev }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          target: runtime
+          platforms: linux/${{ matrix.arch }}
+          build-args: ${{ inputs.build_args }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Pushed by digest; the merge job adds the tags. Pushed on PRs too:
+          # derived images FROM the sha-* tag the merge job creates.
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache-${{ matrix.arch }}
+            type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache-${{ matrix.arch }},mode=max,image-manifest=true
+
+      # Same builder as the step above, so every runtime layer is a local cache
+      # hit and only the chapkit install is new. For :dev the runtime layers come
+      # from the registry cache the release build wrote earlier in the run.
+      - name: Build and push ${{ inputs.image }}-cli (${{ matrix.arch }})
+        id: build-cli
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          target: bundled
+          platforms: linux/${{ matrix.arch }}
+          build-args: |
+            ${{ inputs.dev && 'CHAPKIT_GIT_REF=main' || format('CHAPKIT_VERSION={0}', inputs.chapkit_version) }}
+            ${{ inputs.build_args }}
+          labels: ${{ steps.meta-cli.outputs.labels }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }}-cli,push-by-digest=true,name-canonical=true,push=true
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache-${{ matrix.arch }}
+            type=registry,ref=${{ env.REGISTRY_IMAGE }}-cli:buildcache-${{ matrix.arch }}
+            type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache
+            type=registry,ref=${{ env.REGISTRY_IMAGE }}-cli:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}-cli:buildcache-${{ matrix.arch }},mode=max,image-manifest=true
+
+      - name: Export digests
+        env:
+          RUNTIME_DIGEST: ${{ steps.build.outputs.digest }}
+          CLI_DIGEST: ${{ steps.build-cli.outputs.digest }}
+        run: |
+          mkdir -p digests/runtime digests/cli
+          if [ -n "$RUNTIME_DIGEST" ]; then touch "digests/runtime/${RUNTIME_DIGEST#sha256:}"; fi
+          touch "digests/cli/${CLI_DIGEST#sha256:}"
+
+      - name: Upload digests
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}__${{ matrix.arch }}
+          path: digests/
+          if-no-files-found: error
+          retention-days: 1
+          # A re-run of a failed job uploads under the same name.
+          overwrite: true
+
+  merge:
+    name: merge
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ env.ARTIFACT_PREFIX }}__*
+          path: digests
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (${{ inputs.image }})
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract metadata (${{ inputs.image }}-cli)
+        id: meta-cli
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}-cli
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create ${{ inputs.image }} manifest
+        if: ${{ !inputs.dev }}
+        working-directory: digests/runtime
+        env:
+          TAGS: ${{ steps.meta.outputs.json }}
+        run: |
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$TAGS") \
+            $(printf "${REGISTRY_IMAGE}@sha256:%s " *)
+
+      - name: Create ${{ inputs.image }}-cli manifest
+        working-directory: digests/cli
+        env:
+          TAGS: ${{ inputs.dev && format('{{"tags":["{0}-cli:dev"]}}', env.REGISTRY_IMAGE) || steps.meta-cli.outputs.json }}
+        run: |
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$TAGS") \
+            $(printf "${REGISTRY_IMAGE}-cli@sha256:%s " *)
+
+      - name: Inspect
+        run: |
+          if [ "${{ inputs.dev }}" != "true" ]; then
+            docker buildx imagetools inspect "${REGISTRY_IMAGE}:${{ steps.meta.outputs.version }}"
+          fi
+          docker buildx imagetools inspect "${REGISTRY_IMAGE}-cli:${{ inputs.dev && 'dev' || steps.meta-cli.outputs.version }}"

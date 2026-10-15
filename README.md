@@ -104,10 +104,20 @@ load and an INLA fit as the `chapkit` user, and uid/gid 1000 for that
 user. On scheduled / `workflow_dispatch` runs, a parallel
 `build-dev` job rebuilds the five `-cli` images against `chapkit` main
 and tags them `:dev`; a corresponding `smoke-dev` job exercises those.
+A `smoke-arm64` job runs the same checks on an arm64 runner for the
+multi-arch images.
 
-Build cache is pushed to a `:buildcache` tag alongside each image so PR and
-main-branch builds share cached layers via the registry. A push to `main`
-that changes only Markdown files or the license does not start a build.
+Every image builds through `.github/workflows/build-image.yml`: one job per
+architecture on a native runner (`ubuntu-latest` for amd64,
+`ubuntu-24.04-arm` for arm64, no QEMU), each pushing by digest, then a merge
+job that tags the multi-arch manifest. R packages come from CRAN through
+Posit Package Manager, which has prebuilt Debian trixie binaries for amd64;
+on arm64 only some packages have binaries there and the rest compile.
+
+Build cache is pushed per architecture to `:buildcache-amd64` and
+`:buildcache-arm64` tags alongside each image, so PR and main-branch builds
+share cached layers via the registry. A push to `main` that changes only
+Markdown files or the license does not start a build.
 
 ## Local builds
 
