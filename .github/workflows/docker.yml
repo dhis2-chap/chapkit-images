@@ -51,7 +51,7 @@ env:
   # wins, otherwise repository_dispatch client_payload.ref (which may
   # come in as 'v2.4.0' or '2.4.0' — the Dockerfile strips a leading
   # 'v'), otherwise the currently-pinned release. Only consumed by the
-  # -cli matrix entries; base entries do not install chapkit.
+  # -cli build steps; base images do not install chapkit.
   CHAPKIT_VERSION: >-
     ${{ github.event.inputs.chapkit_version
         || github.event.client_payload.ref
@@ -72,7 +72,8 @@ jobs:
         run: echo "from_tag=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
   # Phase 1: leaf images with no FROM dependency on other chapkit-images
-  # entries. Build chapkit-py and chapkit-r in parallel, multi-arch.
+  # entries. chapkit-py and chapkit-r build in parallel, multi-arch. Each
+  # job builds the base image, then its -cli image on top of it.
   build-leaf:
     name: ${{ matrix.image }}
     runs-on: ubuntu-latest
@@ -83,19 +84,9 @@ jobs:
         include:
           - dockerfile: chapkit-py.Dockerfile
             image: chapkit-py
-            target: runtime
-            platforms: linux/amd64,linux/arm64
-          - dockerfile: chapkit-py.Dockerfile
-            image: chapkit-py-cli
-            target: bundled
             platforms: linux/amd64,linux/arm64
           - dockerfile: chapkit-r.Dockerfile
             image: chapkit-r
-            target: runtime
-            platforms: linux/amd64,linux/arm64
-          - dockerfile: chapkit-r.Dockerfile
-            image: chapkit-r-cli
-            target: bundled
             platforms: linux/amd64,linux/arm64
     steps:
       - uses: actions/checkout@v7
@@ -114,7 +105,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract metadata (${{ matrix.image }})
         id: meta
         uses: docker/metadata-action@v6
         with:
@@ -127,36 +118,58 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Extract metadata (${{ matrix.image }}-cli)
+        id: meta-cli
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/dhis2-chap/${{ matrix.image }}-cli
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push ${{ matrix.image }}
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          target: ${{ matrix.target }}
-          # Push on PRs too: downstream phases FROM the just-pushed
-          # chapkit-r:sha-* tag and need it available in the registry.
+          target: runtime
+          # Push on PRs too: downstream phases FROM the just-pushed sha-* tag.
           push: true
           platforms: ${{ matrix.platforms }}
-          build-args: |
-            CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
           cache-to: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache,mode=max,image-manifest=true
 
-  # Phase 2: chapkit-r-tidyverse FROM chapkit-r:sha-*. Multi-arch.
+      # Same builder as the step above, so every runtime layer is a local
+      # cache hit and only the chapkit install is new.
+      - name: Build and push ${{ matrix.image }}-cli
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: bundled
+          push: true
+          platforms: ${{ matrix.platforms }}
+          build-args: |
+            CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
+          tags: ${{ steps.meta-cli.outputs.tags }}
+          labels: ${{ steps.meta-cli.outputs.labels }}
+          cache-from: |
+            type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
+            type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}-cli:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}-cli:buildcache,mode=max,image-manifest=true
+
+  # Phase 2: chapkit-r-tidyverse FROM chapkit-r:sha-*, then its -cli image.
+  # Multi-arch.
   build-r-tidyverse:
-    name: ${{ matrix.image }}
+    name: chapkit-r-tidyverse
     runs-on: ubuntu-latest
     needs: [resolve-from-tag, build-leaf]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: chapkit-r-tidyverse
-            target: runtime
-          - image: chapkit-r-tidyverse-cli
-            target: bundled
     steps:
       - uses: actions/checkout@v7
 
@@ -173,11 +186,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract metadata (chapkit-r-tidyverse)
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/dhis2-chap/${{ matrix.image }}
+          images: ghcr.io/dhis2-chap/chapkit-r-tidyverse
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -186,35 +199,61 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Extract metadata (chapkit-r-tidyverse-cli)
+        id: meta-cli
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/dhis2-chap/chapkit-r-tidyverse-cli
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push chapkit-r-tidyverse
         uses: docker/build-push-action@v7
         with:
           context: .
           file: chapkit-r-tidyverse.Dockerfile
-          target: ${{ matrix.target }}
+          target: runtime
+          # Push on PRs too: downstream phases FROM the just-pushed sha-* tag.
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            CHAPKIT_R_IMAGE=ghcr.io/dhis2-chap/chapkit-r:${{ needs.resolve-from-tag.outputs.from_tag }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-tidyverse:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-tidyverse:buildcache,mode=max,image-manifest=true
+
+      # Same builder as the step above, so every runtime layer is a local
+      # cache hit and only the chapkit install is new.
+      - name: Build and push chapkit-r-tidyverse-cli
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: chapkit-r-tidyverse.Dockerfile
+          target: bundled
           push: true
           platforms: linux/amd64,linux/arm64
           build-args: |
             CHAPKIT_R_IMAGE=ghcr.io/dhis2-chap/chapkit-r:${{ needs.resolve-from-tag.outputs.from_tag }}
             CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache,mode=max,image-manifest=true
+          tags: ${{ steps.meta-cli.outputs.tags }}
+          labels: ${{ steps.meta-cli.outputs.labels }}
+          cache-from: |
+            type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-tidyverse:buildcache
+            type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-tidyverse-cli:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-tidyverse-cli:buildcache,mode=max,image-manifest=true
 
-  # Phase 3: chapkit-r-inla FROM chapkit-r-tidyverse:sha-*. amd64 only.
+  # Phase 3: chapkit-r-inla FROM chapkit-r-tidyverse:sha-*, then its -cli
+  # image. amd64 only.
   build-r-inla:
-    name: ${{ matrix.image }}
+    name: chapkit-r-inla
     runs-on: ubuntu-latest
     needs: [resolve-from-tag, build-r-tidyverse]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: chapkit-r-inla
-            target: runtime
-          - image: chapkit-r-inla-cli
-            target: bundled
     steps:
       - uses: actions/checkout@v7
 
@@ -228,11 +267,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract metadata (chapkit-r-inla)
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/dhis2-chap/${{ matrix.image }}
+          images: ghcr.io/dhis2-chap/chapkit-r-inla
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -241,21 +280,54 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Extract metadata (chapkit-r-inla-cli)
+        id: meta-cli
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/dhis2-chap/chapkit-r-inla-cli
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push chapkit-r-inla
         uses: docker/build-push-action@v7
         with:
           context: .
           file: chapkit-r-inla.Dockerfile
-          target: ${{ matrix.target }}
+          target: runtime
+          # Push on PRs too: downstream phases FROM the just-pushed sha-* tag.
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            CHAPKIT_R_TIDYVERSE_IMAGE=ghcr.io/dhis2-chap/chapkit-r-tidyverse:${{ needs.resolve-from-tag.outputs.from_tag }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-inla:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-inla:buildcache,mode=max,image-manifest=true
+
+      # Same builder as the step above, so every runtime layer is a local
+      # cache hit and only the chapkit install is new.
+      - name: Build and push chapkit-r-inla-cli
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: chapkit-r-inla.Dockerfile
+          target: bundled
           push: true
           platforms: linux/amd64
           build-args: |
             CHAPKIT_R_TIDYVERSE_IMAGE=ghcr.io/dhis2-chap/chapkit-r-tidyverse:${{ needs.resolve-from-tag.outputs.from_tag }}
             CHAPKIT_VERSION=${{ env.CHAPKIT_VERSION }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache,mode=max,image-manifest=true
+          tags: ${{ steps.meta-cli.outputs.tags }}
+          labels: ${{ steps.meta-cli.outputs.labels }}
+          cache-from: |
+            type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-inla:buildcache
+            type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-inla-cli:buildcache
+          cache-to: type=registry,ref=ghcr.io/dhis2-chap/chapkit-r-inla-cli:buildcache,mode=max,image-manifest=true
 
   # Aggregator job so existing `needs: [build]` references still work.
   build:
@@ -295,18 +367,22 @@ jobs:
         include:
           - dockerfile: chapkit-py.Dockerfile
             image: chapkit-py-cli
+            base_image: chapkit-py
             platforms: linux/amd64,linux/arm64
             extra_build_args: ""
           - dockerfile: chapkit-r.Dockerfile
             image: chapkit-r-cli
+            base_image: chapkit-r
             platforms: linux/amd64,linux/arm64
             extra_build_args: ""
           - dockerfile: chapkit-r-tidyverse.Dockerfile
             image: chapkit-r-tidyverse-cli
+            base_image: chapkit-r-tidyverse
             platforms: linux/amd64,linux/arm64
             extra_build_args: "CHAPKIT_R_IMAGE=ghcr.io/dhis2-chap/chapkit-r:latest"
           - dockerfile: chapkit-r-inla.Dockerfile
             image: chapkit-r-inla-cli
+            base_image: chapkit-r-inla
             platforms: linux/amd64
             extra_build_args: "CHAPKIT_R_TIDYVERSE_IMAGE=ghcr.io/dhis2-chap/chapkit-r-tidyverse:latest"
     steps:
@@ -338,7 +414,9 @@ jobs:
             CHAPKIT_GIT_REF=main
             ${{ matrix.extra_build_args }}
           tags: ghcr.io/dhis2-chap/${{ matrix.image }}:dev
-          cache-from: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
+          cache-from: |
+            type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.base_image }}:buildcache
+            type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache
           cache-to: type=registry,ref=ghcr.io/dhis2-chap/${{ matrix.image }}:buildcache,mode=max,image-manifest=true
 
   smoke:
