@@ -57,7 +57,7 @@ RUN R -q -e "install.packages(c('renv','pak','yaml'), repos='https://cloud.r-pro
 
 # Keep this tag in step with the uv base image in chapkit-py.Dockerfile.
 # dependabot only tracks FROM lines, so it will never bump this one.
-COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /uvx /usr/local/bin/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv python install 3.13 \
