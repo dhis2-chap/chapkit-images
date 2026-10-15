@@ -1,16 +1,18 @@
 # chapkit-images
 
 Docker image backbone for [`chapkit`](https://github.com/dhis2-chap/chapkit).
-Three runtimes — Python, R, and R+INLA — each published in two variants:
+Five runtimes — Python, Python + PyData, R, R + tidyverse and R + INLA —
+each published in two variants:
 
 - **base** (no suffix) — Python/R + `uv` (and for R, `renv` + `pak`), no
   `chapkit`. Use as a `FROM` base for scaffolded chapkit services that
   pin their own `chapkit` version and install via `uv sync`. This is
   what `chapkit init` generates from.
-- **`-cli`** — the base image plus a pinned `chapkit` from PyPI. Use for
-  invoking the `chapkit` CLI directly (e.g.
-  `docker run -v $PWD:/work ... chapkit mlproject migrate .`) without
-  needing a `pyproject.toml` or a `uv sync` step.
+- **`-cli`** — the base image plus a pinned `chapkit` from PyPI. Use to
+  serve an MLproject model directly (the default command is
+  `chapkit run .`, i.e. `chapkit mlproject run .`, on port 8000), or to run
+  any other `chapkit` command such as `chapkit mlproject migrate .`, with no
+  `pyproject.toml`, `uv sync` or image of your own.
 
 Why two variants: a scaffolded project that pins a different `chapkit`
 version than a `chapkit`-bundled base takes the "uninstall + reinstall"
@@ -26,8 +28,8 @@ block every commit on `chapkit`.
 
 | Image                                                | Base                                               | Arches                       | ~Size (amd64) |
 | ---------------------------------------------------- | -------------------------------------------------- | ---------------------------- | ------------- |
-| `ghcr.io/dhis2-chap/chapkit-py:latest`               | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~420 MB       |
-| `ghcr.io/dhis2-chap/chapkit-py-cli:latest`           | `ghcr.io/astral-sh/uv:0.11-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~570 MB       |
+| `ghcr.io/dhis2-chap/chapkit-py:latest`               | `ghcr.io/astral-sh/uv:0.13-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~420 MB       |
+| `ghcr.io/dhis2-chap/chapkit-py-cli:latest`           | `ghcr.io/astral-sh/uv:0.13-python3.13-trixie-slim` | `linux/amd64`, `linux/arm64` | ~570 MB       |
 | `ghcr.io/dhis2-chap/chapkit-py-data:latest`          | `chapkit-py:latest`                                | `linux/amd64`, `linux/arm64` | ~1.0 GB       |
 | `ghcr.io/dhis2-chap/chapkit-py-data-cli:latest`      | `chapkit-py:latest`                                | `linux/amd64`, `linux/arm64` | ~1.2 GB       |
 | `ghcr.io/dhis2-chap/chapkit-r:latest`                | `debian:trixie-slim`                               | `linux/amd64`, `linux/arm64` | ~385 MB       |
@@ -37,9 +39,9 @@ block every commit on `chapkit`.
 | `ghcr.io/dhis2-chap/chapkit-r-inla:latest`           | `chapkit-r-tidyverse:latest` (+ INLA build stage)  | `linux/amd64` (INLA x86_64)  | ~2.02 GB      |
 | `ghcr.io/dhis2-chap/chapkit-r-inla-cli:latest`       | `chapkit-r-tidyverse:latest` (+ INLA build stage)  | `linux/amd64` (INLA x86_64)  | ~2.05 GB      |
 
-The size delta between each base / `-cli` pair is just the chapkit wheel
-and its Python deps (~30–50 MB); the heavy bits (R, INLA, the Python
-toolchain, the tidyverse + ML stack) are identical.
+The difference between a base image and its `-cli` image is only chapkit
+and its Python dependencies; the heavy parts (R, INLA, the Python
+toolchain, the PyData and tidyverse stacks) are the same layers.
 
 Hierarchy: `chapkit-py-data` FROMs `chapkit-py` and adds the PyData
 stack that most Python chap-models use (numpy, pandas, scipy,
@@ -71,12 +73,13 @@ Tag conventions:
 For how to build and run a chapkit service on top of these images, see the
 main chapkit docs:
 
-- [`chapkit` docs](https://dhis2-chap.github.io/chapkit)
-- [`chapkit init`](https://dhis2-chap.github.io/chapkit) — scaffold a new chapkit service
-- [`chapkit migrate`](https://dhis2-chap.github.io/chapkit) — convert an MLproject into a chapkit service
+- [`chapkit` docs](https://dhis2-chap.github.io/chapkit/)
+- [`chapkit init`](https://dhis2-chap.github.io/chapkit/guides/cli-scaffolding/) — scaffold a new chapkit service
+- [`chapkit mlproject migrate`](https://dhis2-chap.github.io/chapkit/guides/mlproject-migrate/) — convert an MLproject into a chapkit service
+- [`chapkit mlproject run`](https://dhis2-chap.github.io/chapkit/guides/mlproject-runner/) — serve an MLproject as is, which is what the `-cli` images do
 
-Both scaffolders generate a `Dockerfile` that `FROM`s the appropriate image
-published by this repo.
+Both scaffolders generate a `Dockerfile` that `FROM`s the appropriate base
+image published by this repo.
 
 ## CI / publishing
 
@@ -94,24 +97,30 @@ adds the chapkit install. Triggers:
 - `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `2.4.0`; only affects `-cli` images)
 - `repository_dispatch` (`event_type: chapkit-release`) — fired by chapkit's release workflow (rebuilds `-cli` images against the released version)
 
-After all ten builds succeed, a `smoke` job pulls each `:main` image and
-runs `chapkit --help` against the `-cli` tags (plus `library(INLA)` for
-`chapkit-r-inla-cli`) and `uv --version` against the base tags, to catch
-broken publishes. On scheduled / `workflow_dispatch` runs, a parallel
+After all ten builds succeed, a `smoke` job pulls each `:main` image to
+catch broken publishes: `chapkit --help` on the `-cli` tags, `uv --version`
+on the base tags, the PyData imports on `chapkit-py-data`, the tidyverse
+load and an INLA fit as the `chapkit` user, and uid/gid 1000 for that
+user. On scheduled / `workflow_dispatch` runs, a parallel
 `build-dev` job rebuilds the five `-cli` images against `chapkit` main
 and tags them `:dev`; a corresponding `smoke-dev` job exercises those.
 
 Build cache is pushed to a `:buildcache` tag alongside each image so PR and
-main-branch builds share cached layers via the registry.
+main-branch builds share cached layers via the registry. A push to `main`
+that changes only Markdown files or the license does not start a build.
 
 ## Local builds
 
 ```bash
-make build                              # all six images, default chapkit version
+make build                              # all ten images, default chapkit version
 make build-py                           # base Python image only (no chapkit)
 make build-py-cli                       # Python image with chapkit pre-installed
-make build-r                            # base R, multi-arch
+make build-py-data                      # Python + PyData stack (no chapkit)
+make build-py-data-cli                  # Python + PyData stack with chapkit
+make build-r                            # base R (amd64 locally, see the Makefile)
 make build-r-cli                        # R with chapkit pre-installed
+make build-r-tidyverse                  # R + tidyverse stack (no chapkit)
+make build-r-tidyverse-cli              # R + tidyverse stack with chapkit
 make build-r-inla                       # base R + INLA, amd64
 make build-r-inla-cli                   # R + INLA with chapkit pre-installed
 make build-py-cli CHAPKIT_VERSION=2.4.0   # pin a specific PyPI version
