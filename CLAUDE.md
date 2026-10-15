@@ -43,9 +43,10 @@ Lives in its own repository so the slow R + INLA builds don't block every commit
 ```
 chapkit-images/
 ├── chapkit-py.Dockerfile        # Python 3.13 + uv + chapkit. Multi-arch (amd64, arm64).
+├── chapkit-py-data.Dockerfile   # chapkit-py + numpy, pandas, scipy, scikit-learn, statsmodels, ... Multi-arch.
 ├── chapkit-r.Dockerfile         # Debian trixie + R 4.5 + renv/pak + chapkit. Multi-arch.
 ├── chapkit-r-inla.Dockerfile    # Adds compiled INLA + spatial/time-series R stack. amd64 only.
-├── Makefile                     # Local build helpers (build-py / build-r / build-r-inla).
+├── Makefile                     # Local build helpers (build-py / build-py-data / build-r / build-r-inla).
 ├── .github/workflows/docker.yml # CI: builds and pushes to ghcr.io/dhis2-chap/<image>.
 ├── README.md
 └── LICENSE                      # AGPL-3.0, matches upstream chapkit.
@@ -82,7 +83,7 @@ After all three builds succeed, a `smoke` job pulls each `:main` image and runs 
 - `chapkit` is installed from PyPI via `uv pip install chapkit==${CHAPKIT_VERSION}` into `/app/.venv`.
 - R images install `renv` and `pak` so downstream projects can `renv::restore()` without bootstrapping from CRAN.
 - `chapkit-r-inla` uses a two-stage build: an `inla-builder` stage compiles INLA + the spatial/time-series R package set, then the runtime stage copies `/usr/local/lib/R/site-library`.
-- Images run as `root` by default and ship an unprivileged `chapkit` user (uid/gid 1000) created in `chapkit-py` and `chapkit-r`; the other R images inherit it. Scaffolded services switch to it with `USER chapkit`.
+- Images run as `root` by default and ship an unprivileged `chapkit` user (uid/gid 1000) created in `chapkit-py` and `chapkit-r`; `chapkit-py-data` and the other R images inherit it. Scaffolded services switch to it with `USER chapkit`.
 
 ## Git workflow
 
