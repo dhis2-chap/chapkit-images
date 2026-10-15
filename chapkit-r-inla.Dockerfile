@@ -62,6 +62,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # miss, silently moving the published image to whatever upstream shipped
 # since. Bumping belongs in this single arg edit. See CLIM-934.
 ARG INLA_VERSION=25.10.19
+# CRAN through Posit Package Manager: prebuilt binaries for Debian trixie on
+# amd64 (the only platform this image builds), so the spatial stack installs
+# instead of compiling. install.packages() only gets the binaries with this
+# HTTPUserAgent, set in the builder's Rprofile.site so every call below has it;
+# the builder stage is discarded, so it does not reach the image.
+ARG CRAN_REPO=https://p3m.dev/cran/__linux__/trixie/latest
+RUN echo "options(HTTPUserAgent = sprintf('R/%s R (%s)', getRversion(), paste(getRversion(), R.version['platform'], R.version['arch'], R.version['os'])))" >> /etc/R/Rprofile.site
 
 # fmesher first (dependency for modern INLA), then the pinned INLA
 # tarball (repos=NULL skips the huge Suggests chain, as dep=FALSE did),
@@ -73,12 +80,12 @@ ARG INLA_VERSION=25.10.19
 # tidyverse + tidyverts come from the chapkit-r-tidyverse base layer in
 # the runtime stage — no need to re-install them here.
 RUN R -q -e "install.packages('fmesher', \
-        repos = c('https://cloud.r-project.org', INLA = 'https://inla.r-inla-download.org/R/stable'))" \
+        repos = c('${CRAN_REPO}', INLA = 'https://inla.r-inla-download.org/R/stable'))" \
     && R -q -e "install.packages( \
         'https://inla.r-inla-download.org/R/stable/src/contrib/INLA_${INLA_VERSION}.tar.gz', \
         repos = NULL, type = 'source')" \
     && R -q -e "install.packages(c('dlnm','jsonlite','sf','spdep','sn','tsModel'), \
-        repos='https://cloud.r-project.org')" \
+        repos='${CRAN_REPO}', Ncpus=parallel::detectCores())" \
     && R -q -e "library(INLA); INLA::inla.prune(ask = FALSE)"
 
 # Strip debug symbols + drop help/docs to shrink the site-library.

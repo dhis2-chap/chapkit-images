@@ -73,10 +73,18 @@ ARG CHAPKIT_R_IMAGE=ghcr.io/dhis2-chap/chapkit-r:latest
 # ---------- Stage: runtime (no chapkit) ----------
 FROM ${CHAPKIT_R_IMAGE} AS runtime
 
-# pak is already in chapkit-r and gives us binary builds where
-# available (much faster than compiling from source). lubridate is a
+# CRAN through Posit Package Manager: prebuilt binaries for Debian trixie on
+# amd64, so packages install instead of compiling. On arm64 only some
+# packages have binaries there; the rest are served as source and compile,
+# in parallel.
+ARG CRAN_REPO=https://p3m.dev/cran/__linux__/trixie/latest
+
+# pak is already in chapkit-r and installs in parallel. lubridate is a
 # core tidyverse member since v2.0; listed explicitly for clarity.
-RUN R -q -e "pak::pkg_install(c( \
+# PKG_INCLUDE_LINKINGTO: on arm64 P3M serves some packages as binaries and
+# some as source, and pak leaves LinkingTo dependencies (cpp11, ...) out of
+# the plan for binaries, so a source package that needs one fails to build.
+RUN MAKEFLAGS="-j$(nproc)" PKG_INCLUDE_LINKINGTO=TRUE R -q -e "options(repos = c(CRAN = '${CRAN_REPO}')); pak::pkg_install(c( \
         'tidyverse', \
         'fable', \
         'tsibble', \

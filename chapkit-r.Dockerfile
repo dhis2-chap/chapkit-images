@@ -53,7 +53,14 @@ RUN groupadd --gid 1000 chapkit \
 # without bootstrapping either from CRAN first. yaml is included because
 # chapkit reads/writes YAML config and MLproject files at runtime, and
 # nearly every R MLproject ends up loading it.
-RUN R -q -e "install.packages(c('renv','pak','yaml'), repos='https://cloud.r-project.org')"
+# CRAN through Posit Package Manager: prebuilt binaries for Debian trixie on
+# amd64, so packages install instead of compiling. On arm64 only some
+# packages have binaries there; the rest are served as source and compile,
+# in parallel.
+# install.packages() only gets the binaries with this HTTPUserAgent (pak sets
+# its own); without it P3M serves source.
+ARG CRAN_REPO=https://p3m.dev/cran/__linux__/trixie/latest
+RUN MAKEFLAGS="-j$(nproc)" R -q -e "options(HTTPUserAgent = sprintf('R/%s R (%s)', getRversion(), paste(getRversion(), R.version['platform'], R.version['arch'], R.version['os']))); install.packages(c('renv','pak','yaml'), repos='${CRAN_REPO}', Ncpus=parallel::detectCores())"
 
 # Keep this tag in step with the uv base image in chapkit-py.Dockerfile.
 # dependabot only tracks FROM lines, so it will never bump this one.
