@@ -61,7 +61,7 @@ make build-r                    # R base, multi-arch.
 make build-r-inla               # R + INLA, amd64 only.
 
 # Pin a specific chapkit ref (branch / tag / SHA):
-make build-py CHAPKIT_VERSION=2.4.0
+make build-py CHAPKIT_VERSION=2.4.1
 ```
 
 ## CI / publishing
@@ -72,7 +72,7 @@ Triggers:
 - push to `main` — updates `:main` / `:latest`
 - tag `v*` — publishes the matching semver tag
 - `schedule` (nightly, 04:17 UTC) — picks up base-image security fixes and rebuilds the `-cli` images as `:dev` against chapkit `main`
-- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `2.4.0`)
+- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `2.4.1`)
 - `repository_dispatch` (`event_type: chapkit-release`) — chapkit's release workflow fires this
 
 Each image builds through the reusable `.github/workflows/build-image.yml`: one job per architecture on a native runner (arm64 on `ubuntu-24.04-arm`, no QEMU), pushing by digest, then a merge job that tags the multi-arch manifest. Build cache is per architecture (`:buildcache-amd64`, `:buildcache-arm64`). R packages install from Posit Package Manager (`CRAN_REPO`), which has prebuilt trixie binaries for amd64.
