@@ -138,7 +138,7 @@ jobs:
           touch "digests/cli/${CLI_DIGEST#sha256:}"
 
       - name: Upload digests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.ARTIFACT_PREFIX }}__${{ matrix.arch }}
           path: digests/
@@ -153,7 +153,7 @@ jobs:
     needs: [build]
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: ${{ env.ARTIFACT_PREFIX }}__*
           path: digests
