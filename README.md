@@ -94,7 +94,7 @@ adds the chapkit install. Triggers:
 - push to `main` — refresh `:latest`
 - tag `v*` — publish semver tag
 - `schedule` (nightly, 04:17 UTC) — base-image security refresh
-- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `2.4.1`; only affects `-cli` images)
+- `workflow_dispatch` — manual with `chapkit_version` input (PyPI version, e.g. `2.5.0`; only affects `-cli` images)
 - `repository_dispatch` (`event_type: chapkit-release`) — fired by chapkit's release workflow (rebuilds `-cli` images against the released version)
 
 After all ten builds succeed, a `smoke` job pulls each `:main` image to
@@ -133,7 +133,7 @@ make build-r-tidyverse                  # R + tidyverse stack (no chapkit)
 make build-r-tidyverse-cli              # R + tidyverse stack with chapkit
 make build-r-inla                       # base R + INLA, amd64
 make build-r-inla-cli                   # R + INLA with chapkit pre-installed
-make build-py-cli CHAPKIT_VERSION=2.4.1   # pin a specific PyPI version
+make build-py-cli CHAPKIT_VERSION=2.5.0   # pin a specific PyPI version
 make build-r-inla INLA_VERSION=26.08.07   # build against a different INLA version
 ```
 
